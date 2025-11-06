@@ -21,6 +21,8 @@ jobs:
       working-directory : ./compiler
       run: rustup update && cargo build --verbose
     - name: Run tests
+      working-directory : ./compiler
       run: cargo test --verbose
     - name: Do linting
+      working-directory : ./compiler
       run: cargo clippy -- -D warnings
