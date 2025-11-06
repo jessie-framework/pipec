@@ -1,3 +1,4 @@
+pub mod parser;
 pub mod tokenizer;
 
 use crate::tokenizer::{Token, Tokenizer};
