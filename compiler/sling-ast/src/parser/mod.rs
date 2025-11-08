@@ -1,5 +1,6 @@
-use crate::tokenizer::Token;
+use crate::tokenizer::tokentree::TokenTree;
 
 pub struct Parser {
-    tokens: Vec<Token>,
+    #[allow(dead_code)]
+    tokens: TokenTree,
 }
