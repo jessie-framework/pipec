@@ -2,6 +2,7 @@ use putbackpeekmore::PutBackPeekMore;
 use sling_cache::{Decode, Encode};
 use std::str::Chars;
 mod reader;
+pub mod tokentree;
 
 pub struct Tokenizer<'chars> {
     stream: PutBackPeekMore<Chars<'chars>, 4>,

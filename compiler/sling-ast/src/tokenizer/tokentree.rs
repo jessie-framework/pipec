@@ -6,12 +6,11 @@ pub struct TokenTree {
 }
 
 impl TokenTree {
-    pub fn current(&mut self) -> &Token {
-        &self.stream[self.pos]
+    pub fn current_token(&mut self) -> Option<&Token> {
+        self.stream.get(self.pos)
     }
-
-    pub fn next(&mut self) -> &Token {
+    pub fn next_token(&mut self) -> Option<&Token> {
         self.pos += 1;
-        self.current()
+        self.current_token()
     }
 }
