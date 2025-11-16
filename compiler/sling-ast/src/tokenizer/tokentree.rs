@@ -13,4 +13,7 @@ impl TokenTree {
         self.pos += 1;
         self.current_token()
     }
+    pub fn peek(&mut self) -> Option<&Token> {
+        self.stream.get(self.pos + 1)
+    }
 }

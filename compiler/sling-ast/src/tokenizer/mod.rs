@@ -179,6 +179,10 @@ impl<'chars> Tokenizer<'chars> {
     #[inline]
     pub(crate) fn consume_colon(&mut self) -> Token {
         self.advance_stream();
+        if self.peek_stream() == &Some(':') {
+            self.advance_stream();
+            return Token::DoubleColon;
+        }
         Token::Colon
     }
     #[inline]
@@ -355,61 +359,116 @@ impl<'chars> Tokenizer<'chars> {
     }
     #[inline]
     pub(crate) fn consume_ident_token(&mut self) -> Token {
-        let record = self.start_record();
+        let mut out: String = "".into();
         loop {
             let peek = self.peek_stream();
             if let Some(v) = peek
                 && (v.is_ascii_alphabetic() || v.is_ascii_digit() || *v == '_')
             {
+                out.push(*v);
                 self.advance_stream();
                 continue;
             }
             break;
         }
-        Token::Ident(self.end_record(record))
+
+        Self::match_for_keywords(out)
+    }
+
+    #[inline]
+    pub(crate) fn match_for_keywords(input: String) -> Token {
+        match input.as_str() {
+            "using" => Token::UsingKeyword,
+            "main" => Token::MainKeyword,
+            "let" => Token::LetKeyword,
+            _ => Token::Ident(input),
+        }
     }
 }
 
 #[derive(PartialEq, Debug, Decode, Encode, Hash)]
 pub enum Token {
-    EqualTo,             // ==
-    NotEqualTo,          // !=
-    GreaterThanAndEqual, // >=
-    LessThanAndEqual,    // <=
-    And,                 // &&
-    Or,                  // ||
-    AtSign,              // @
-    EqualSign,           // =
-    Semicolon,           // ;
-    Colon,               // :
-    Comma,               // ,
-    Dot,                 // .
-    Plus,                // +
-    Minus,               // -
-    Slash,               // /
-    Asterisk,            // *
-    Ampersand,           // &
-    Modulo,              // %
-    ExclamationMark,     // !
-    QuestionMark,        // ?
-    Tilde,               // ~
-    Caret,               // ^
-    Pipe,                // |
-    LeftParenthesis,     // (
-    RightParenthesis,    // )
-    LeftSquare,          // [
-    RightSquare,         // ]
-    LeftCurly,           // {
-    RightCurly,          // }
-    LeftAngle,           // <
-    RightAngle,          // >
-    Whitespace,          // lmao
-    Digit(Position),     //21321
-    Ident(Position),     //things_like_this OR this_2
-    String(Position),    //"things like this"
-    Char(char),          // 'h'
-    Integer(u64),
-    EOF, // End of file
+    /// ==
+    EqualTo,
+    /// !=
+    NotEqualTo,
+    /// >=
+    GreaterThanAndEqual,
+    /// <=
+    LessThanAndEqual,
+    /// &&
+    And,
+    /// ||
+    Or,
+    /// @
+    AtSign,
+    /// =
+    EqualSign,
+    /// ;
+    Semicolon,
+    /// :
+    Colon,
+    /// ::
+    DoubleColon,
+    /// ,
+    Comma,
+    /// .
+    Dot,
+    /// +
+    Plus,
+    /// -
+    Minus,
+    /// /
+    Slash,
+    /// *
+    Asterisk,
+    /// &
+    Ampersand,
+    /// %
+    Modulo,
+    /// !
+    ExclamationMark,
+    /// ?
+    QuestionMark,
+    /// ~
+    Tilde,
+    /// ^
+    Caret,
+    /// |
+    Pipe,
+    /// (
+    LeftParenthesis,
+    /// )
+    RightParenthesis,
+    /// [
+    LeftSquare,
+    /// ]
+    RightSquare,
+    /// {
+    LeftCurly,
+    /// }
+    RightCurly,
+    /// <
+    LeftAngle,
+    /// >
+    RightAngle,
+    /// (whitespace)
+    Whitespace,
+    /// using
+    UsingKeyword,
+    /// main
+    MainKeyword,
+    /// let
+    LetKeyword,
+    /// 21213
+    Digit(Position),
+    /// things_like_this or this_2
+    Ident(String),
+    /// "things like this"
+    String(Position),
+    /// 'h'
+    Char(char),
+    EOF,
 }
 
 #[derive(PartialEq, Debug, Decode, Encode, Hash)]
