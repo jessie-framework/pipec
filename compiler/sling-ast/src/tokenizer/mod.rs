@@ -17,18 +17,6 @@ impl<'chars> Tokenizer<'chars> {
         }
     }
 
-    pub(crate) fn start_record(&self) -> Position {
-        Position {
-            start: self.position,
-            end: 0,
-        }
-    }
-
-    pub(crate) fn end_record(&self, mut input: Position) -> Position {
-        input.end = self.position;
-        input
-    }
-
     pub(crate) fn peek_stream(&mut self) -> &Option<char> {
         self.stream.peek()
     }
@@ -74,10 +62,11 @@ impl<'chars> Tokenizer<'chars> {
                 ',' => self.consume_comma(),
                 '=' => self.consume_equal_sign(),
                 '"' => self.consume_string(),
+                '#' => self.consume_hash(),
                 v if v.is_ascii_whitespace() => self.consume_whitespace(),
                 v if v.is_ascii_alphabetic() => self.consume_ident_token(),
                 v if v.is_ascii_digit() => self.consume_digit_token(),
-                _ => {
+                _v => {
                     //TODO : compiler error
                     unreachable!()
                 }
@@ -256,21 +245,21 @@ impl<'chars> Tokenizer<'chars> {
 
     #[inline]
     pub(crate) fn consume_string(&mut self) -> Token {
-        let record = self.start_record();
         self.advance_stream();
+        let mut out = String::with_capacity(30);
         loop {
             let peek = self.peek_stream();
             match peek {
                 Some('"') => {
                     self.advance_stream();
-                    return Token::String(self.end_record(record));
+                    return Token::String(out);
                 }
-                Some(_v) => {
-                    // if *v == '\\' {
-                    //     out.push(self.consume_escaped_char())
-                    // } else {
-                    //     out.push(*v);
-                    // } // TODO : we are going to analyze strings later
+                Some(v) => {
+                    if *v == '\\' {
+                        out.push(self.consume_escaped_char())
+                    } else {
+                        out.push(*v);
+                    } // TODO : we are going to analyze strings later
                     self.advance_stream();
                 }
                 None => {
@@ -309,24 +298,38 @@ impl<'chars> Tokenizer<'chars> {
 
     #[inline]
     pub(crate) fn consume_digit_token(&mut self) -> Token {
-        let record = self.start_record();
+        let mut out = String::with_capacity(30);
+        let mut digittype = DigitType::Int;
         loop {
             let peek = self.peek_stream();
             if let Some(v) = peek
                 && (v.is_ascii_digit())
             {
+                out.push(*v);
                 self.advance_stream();
                 continue;
             }
+            if peek == &Some('.') {
+                self.advance_stream();
+                digittype = DigitType::Float;
+            }
             break;
         }
-        Token::Digit(self.end_record(record))
+        Token::Digit {
+            val: out,
+            digittype,
+        }
     }
 
     #[inline]
     pub(crate) fn consume_slash(&mut self) -> Token {
         self.advance_stream();
         Token::Slash
+    }
+    #[inline]
+    pub(crate) fn consume_hash(&mut self) -> Token {
+        self.advance_stream();
+        Token::Hash
     }
 
     #[inline]
@@ -377,11 +380,21 @@ impl<'chars> Tokenizer<'chars> {
 
     #[inline]
     pub(crate) fn match_for_keywords(input: String) -> Token {
+        use Token::*;
         match input.as_str() {
-            "using" => Token::UsingKeyword,
-            "main" => Token::MainKeyword,
-            "let" => Token::LetKeyword,
-            _ => Token::Ident(input),
+            "using" => UsingKeyword,
+            "main" => MainKeyword,
+            "let" => LetKeyword,
+            "viewport" => ViewportKeyword,
+            "component" => ComponentKeyword,
+            "final" => FinalKeyword,
+            "render" => RenderKeyword,
+            "vertices" => VerticesKeyword,
+            "fragments" => FragmentsKeyword,
+            "export" => ExportKeyword,
+            "public" => PublicKeyword,
+            "required" => RequiredKeyword,
+            _ => Ident(input),
         }
     }
 }
@@ -452,6 +465,8 @@ pub enum Token {
     LeftAngle,
     /// >
     RightAngle,
+    /// #
+    Hash,
     /// (whitespace)
     Whitespace,
     /// using
@@ -460,19 +475,36 @@ pub enum Token {
     MainKeyword,
     /// let
     LetKeyword,
+    /// viewport
+    ViewportKeyword,
+    /// component
+    ComponentKeyword,
+    /// final
+    FinalKeyword,
+    /// render
+    RenderKeyword,
+    /// vertices
+    VerticesKeyword,
+    /// fragments
+    FragmentsKeyword,
+    /// export
+    ExportKeyword,
+    /// public
+    PublicKeyword,
+    /// required
+    RequiredKeyword,
     /// 21213
-    Digit(Position),
+    Digit { val: String, digittype: DigitType },
     /// things_like_this or this_2
     Ident(String),
     /// "things like this"
-    String(Position),
-    /// 'h'
-    Char(char),
+    String(String),
+    /// 'h'    Char(char),
     EOF,
 }
 
-#[derive(PartialEq, Debug, Decode, Encode, Hash)]
-pub struct Position {
-    start: usize,
-    end: usize,
+#[derive(PartialEq, Debug, Decode, Encode, Hash, Clone, Copy)]
+pub enum DigitType {
+    Float,
+    Int,
 }
