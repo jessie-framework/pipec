@@ -1,6 +1,8 @@
 pub mod parser;
 pub mod tokenizer;
 
+use crate::parser::{Parsed, Parser};
+use crate::tokenizer::tokentree::TokenTree;
 use crate::tokenizer::{Token, Tokenizer};
 use sling_globals::GLOBALS;
 pub fn generate_ast(input: &str) -> Result<(), std::io::Error> {
@@ -9,6 +11,14 @@ pub fn generate_ast(input: &str) -> Result<(), std::io::Error> {
     token_loader.tokenize(input);
     token_loader.upload(token_loader_link);
     token_loader.print_tokens();
+    let mut parser = Parser::new(token_loader.tree());
+    loop {
+        let next = parser.parse_value();
+        if next == Parsed::EOF {
+            break;
+        }
+        println!("{:#?}", next);
+    }
 
     Ok(())
 }
@@ -53,6 +63,10 @@ impl TokenLoader {
         let out_link = out.get_link();
         out.try_load();
         (out, out_link)
+    }
+
+    pub fn tree(self) -> TokenTree {
+        TokenTree::new(self.tokens.unwrap())
     }
 
     pub fn tokenize(&mut self, input: &str) {
