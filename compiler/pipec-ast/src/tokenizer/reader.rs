@@ -1,4 +1,4 @@
-use sling_cache::{Decode, Encode};
+use pipec_cache::{Decode, Encode};
 
 #[derive(Decode, Encode, Hash)]
 #[allow(dead_code)]

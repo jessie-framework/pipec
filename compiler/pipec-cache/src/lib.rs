@@ -1,6 +1,6 @@
 pub use bincode::{Decode, Encode};
 
-use sling_globals::GLOBALS;
+use pipec_globals::GLOBALS;
 use std::collections::hash_map::DefaultHasher;
 use std::fs::File;
 use std::hash::{Hash, Hasher};

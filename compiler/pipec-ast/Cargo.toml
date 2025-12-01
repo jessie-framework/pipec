@@ -1,5 +1,5 @@
 [package]
-name = "sling-ast"
+name = "pipec-ast"
 version = "0.1.0"
 edition = "2024"
 
@@ -7,5 +7,5 @@ edition = "2024"
 bincode = { version = "2.0.1", features = ["derive"] }
 bumpalo = "3.19.0"
 putbackpeekmore = "0.1.1"
-sling-cache = { version = "0.1.0", path = "../sling-cache" }
-sling-globals = { version = "0.1.0", path = "../sling-globals" }
+pipec-cache = { version = "0.1.0", path = "../pipec-cache" }
+pipec-globals = { version = "0.1.0", path = "../pipec-globals" }

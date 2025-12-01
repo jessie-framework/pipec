@@ -1,5 +1,5 @@
-use sling_ast::generate_ast;
-use sling_globals::GLOBALS;
+use pipec_ast::generate_ast;
+use pipec_globals::GLOBALS;
 use std::{fs::File, io::Read};
 pub fn read_file() -> std::io::Result<()> {
     let mut file = File::open(&*GLOBALS.file)?;

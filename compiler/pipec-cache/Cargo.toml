@@ -1,5 +1,5 @@
 [package]
-name = "sling-cache"
+name = "pipec-cache"
 version = "0.1.0"
 edition = "2024"
 
@@ -7,4 +7,4 @@ edition = "2024"
 base64 = "0.22.1"
 bincode = { version = "2.0.1", features = ["derive"] }
 serde = "1.0.228"
-sling-globals = { version = "0.1.0", path = "../sling-globals" }
+pipec-globals = { version = "0.1.0", path = "../pipec-globals" }

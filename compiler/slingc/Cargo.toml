@@ -1,8 +1,0 @@
-[package]
-name = "slingc"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-sling-ast = { version = "0.1.0", path = "../sling-ast" }
-sling-globals = { version = "0.1.0", path = "../sling-globals" }

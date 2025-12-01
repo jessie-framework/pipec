@@ -1,5 +1,5 @@
+use pipec_cache::{Decode, Encode};
 use putbackpeekmore::PutBackPeekMore;
-use sling_cache::{Decode, Encode};
 use std::str::Chars;
 mod reader;
 pub mod tokentree;

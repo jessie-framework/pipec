@@ -1,8 +1,0 @@
-[package]
-name = "sling-globals"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-clap = "4.5.48"
-sling-args = { version = "0.1.0", path = "../sling-args" }

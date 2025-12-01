@@ -4,7 +4,7 @@ pub mod tokenizer;
 use crate::parser::{Parsed, Parser};
 use crate::tokenizer::tokentree::TokenTree;
 use crate::tokenizer::{Token, Tokenizer};
-use sling_globals::GLOBALS;
+use pipec_globals::GLOBALS;
 pub fn generate_ast(input: &str) -> Result<(), std::io::Error> {
     let (_loader, loader_link) = FileLoader::new((GLOBALS).file.clone())?;
     let (mut token_loader, token_loader_link) = TokenLoader::new(loader_link);
@@ -23,7 +23,7 @@ pub fn generate_ast(input: &str) -> Result<(), std::io::Error> {
     Ok(())
 }
 
-use sling_cache::{Cached, Decode, Encode, Link};
+use pipec_cache::{Cached, Decode, Encode, Link};
 use std::{fs::File, io::Read, path::PathBuf};
 #[derive(Hash, Decode, Encode)]
 pub struct FileLoader {

@@ -149,6 +149,54 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 
 [[package]]
+name = "pipec-args"
+version = "0.1.0"
+dependencies = [
+ "clap",
+]
+
+[[package]]
+name = "pipec-ast"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "bumpalo",
+ "pipec-cache",
+ "pipec-globals",
+ "putbackpeekmore",
+]
+
+[[package]]
+name = "pipec-cache"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "bincode",
+ "pipec-globals",
+ "serde",
+]
+
+[[package]]
+name = "pipec-errors"
+version = "0.1.0"
+
+[[package]]
+name = "pipec-globals"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "pipec-args",
+]
+
+[[package]]
+name = "pipecc"
+version = "0.1.0"
+dependencies = [
+ "pipec-ast",
+ "pipec-globals",
+]
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.103"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -199,54 +247,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "sling-args"
-version = "0.1.0"
-dependencies = [
- "clap",
-]
-
-[[package]]
-name = "sling-ast"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "bumpalo",
- "putbackpeekmore",
- "sling-cache",
- "sling-globals",
-]
-
-[[package]]
-name = "sling-cache"
-version = "0.1.0"
-dependencies = [
- "base64",
- "bincode",
- "serde",
- "sling-globals",
-]
-
-[[package]]
-name = "sling-errors"
-version = "0.1.0"
-
-[[package]]
-name = "sling-globals"
-version = "0.1.0"
-dependencies = [
- "clap",
- "sling-args",
-]
-
-[[package]]
-name = "slingc"
-version = "0.1.0"
-dependencies = [
- "sling-ast",
- "sling-globals",
 ]
 
 [[package]]
