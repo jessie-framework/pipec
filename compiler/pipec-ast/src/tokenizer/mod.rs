@@ -1,6 +1,8 @@
 use pipec_cache::{Decode, Encode};
 use putbackpeekmore::PutBackPeekMore;
 use std::str::Chars;
+
+use crate::tokenizer::tokentree::TokenTree;
 mod reader;
 pub mod tokentree;
 
@@ -396,6 +398,18 @@ impl<'chars> Tokenizer<'chars> {
             "required" => RequiredKeyword,
             _ => Ident(input),
         }
+    }
+
+    pub fn tree(mut self) -> TokenTree {
+        let mut out = Vec::with_capacity(1000);
+        loop {
+            let next = self.consume_next_token();
+            if next == Token::EOF {
+                break;
+            }
+            out.push(next);
+        }
+        TokenTree::new(out)
     }
 }
 

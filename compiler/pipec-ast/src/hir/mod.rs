@@ -1,13 +1,28 @@
+use self::hirtree::HIRTree;
 use crate::tokenizer::DigitType;
 use crate::tokenizer::Token;
 use crate::tokenizer::tokentree::TokenTree;
+use pipec_cache::{Cached, Decode, Encode};
 
-pub struct Parser {
-    tokens: TokenTree,
+pub mod hirtree;
+
+pub struct HIRGenerator<'this> {
+    tokens: &'this mut TokenTree,
 }
 
-impl Parser {
-    pub fn new(tokens: TokenTree) -> Self {
+impl<'this> HIRGenerator<'this> {
+    pub fn tree(mut self) -> HIRTree {
+        let mut out = Vec::with_capacity(30);
+        loop {
+            let next = self.parse_value();
+            if next == HIRNode::EOF {
+                break;
+            }
+            out.push(next);
+        }
+        HIRTree::new(out)
+    }
+    pub fn new(tokens: &'this mut TokenTree) -> Self {
         Self { tokens }
     }
     #[inline]
@@ -19,7 +34,7 @@ impl Parser {
         self.tokens.peek()
     }
 
-    pub fn parse_value(&mut self) -> Parsed {
+    pub fn parse_value(&mut self) -> HIRNode {
         self.consume_whitespace();
         match self.peek_stream() {
             Some(v) => match v {
@@ -30,16 +45,16 @@ impl Parser {
                     todo!();
                 }
             },
-            None => Parsed::EOF,
+            None => HIRNode::EOF,
         }
     }
 
     #[inline]
-    pub(crate) fn consume_component_keyword(&mut self) -> Parsed {
+    pub(crate) fn consume_component_keyword(&mut self) -> HIRNode {
         self.advance_stream();
         self.consume_whitespace();
         if let Some(Token::Ident(v)) = self.advance_stream() {
-            return Parsed::ComponentDeclaration {
+            return HIRNode::ComponentDeclaration {
                 name: v.to_string(),
                 block: self.consume_component_declaration_block(),
             };
@@ -199,10 +214,10 @@ impl Parser {
     }
 
     #[inline]
-    pub(crate) fn consume_main_keyword(&mut self) -> Parsed {
+    pub(crate) fn consume_main_keyword(&mut self) -> HIRNode {
         self.advance_stream();
         self.consume_whitespace();
-        Parsed::MainFunction {
+        HIRNode::MainFunction {
             block: self.consume_function_block(),
         }
     }
@@ -641,13 +656,13 @@ impl Parser {
     }
 
     #[inline]
-    pub(crate) fn consume_using_keyword(&mut self) -> Parsed {
+    pub(crate) fn consume_using_keyword(&mut self) -> HIRNode {
         self.advance_stream();
         self.consume_whitespace();
 
         let using = self.consume_a_path();
         self.consume_a_semicolon();
-        Parsed::UsingStatement { using }
+        HIRNode::UsingStatement { using }
     }
 
     #[inline]
@@ -735,8 +750,10 @@ impl Parser {
         }
     }
 }
-#[derive(Clone, Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq, Default, Decode, Encode, Hash)]
 pub struct Path(Vec<PathNode>);
+
+impl Cached for Path {}
 
 impl Path {
     pub fn add_child(&mut self, input: PathNode) {
@@ -744,18 +761,20 @@ impl Path {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Decode, Encode, Hash)]
 pub struct PathNode {
     name: String,
     param: Option<FunctionNodeParams>,
 }
-#[derive(Clone, Debug, PartialEq)]
+
+#[derive(Clone, Debug, PartialEq, Decode, Encode, Hash)]
 pub enum FunctionNodeParams {
     Tuple(Vec<Expression>),
     Angles(Vec<Path>),
 }
-#[derive(Debug, PartialEq)]
-pub enum Parsed {
+
+#[derive(Debug, PartialEq, Decode, Encode, Hash)]
+pub enum HIRNode {
     MainFunction {
         block: Block,
     },
@@ -773,12 +792,16 @@ pub enum Parsed {
     EOF,
 }
 
-#[derive(Debug, PartialEq)]
+impl Cached for HIRNode {}
+
+#[derive(Debug, PartialEq, Decode, Encode, Hash)]
 pub struct ComponentDeclarationBlock {
     contents: Vec<ComponentDeclarationBlockStatements>,
 }
 
-#[derive(Debug, PartialEq)]
+impl Cached for ComponentDeclarationBlock {}
+
+#[derive(Debug, PartialEq, Decode, Encode, Hash)]
 pub enum ComponentDeclarationBlockStatements {
     FinalVariableDeclaration {
         variablename: String,
@@ -797,23 +820,31 @@ pub enum ComponentDeclarationBlockStatements {
     },
 }
 
-#[allow(dead_code)]
-#[derive(Debug, PartialEq)]
+impl Cached for ComponentDeclarationBlockStatements {}
+
+#[derive(Debug, PartialEq, Decode, Encode, Hash)]
 pub struct RenderBlock {
     vertices_block: VerticesBlock,
     fragments_block: FragmentsBlock,
 }
 
-#[derive(Debug, PartialEq)]
+impl Cached for RenderBlock {}
+
+#[derive(Debug, PartialEq, Decode, Encode, Hash)]
 pub struct VerticesBlock {
     block: Block,
 }
-#[derive(Debug, PartialEq)]
+
+impl Cached for VerticesBlock {}
+
+#[derive(Debug, PartialEq, Decode, Encode, Hash)]
 pub struct FragmentsBlock {
     block: Block,
 }
 
-#[derive(Debug, PartialEq)]
+impl Cached for FragmentsBlock {}
+
+#[derive(Debug, PartialEq, Decode, Encode, Hash)]
 pub enum FunctionBlockStatements {
     VariableDeclaration {
         variablename: String,
@@ -835,14 +866,18 @@ pub enum FunctionBlockStatements {
     },
 }
 
-#[derive(Debug, PartialEq)]
+impl Cached for FunctionBlockStatements {}
+
+#[derive(Debug, PartialEq, Decode, Encode, Hash)]
 pub enum Exported {
     ColorBuiltin,
     PositionBuiltin,
     Custom(String),
 }
 
-#[derive(Debug, PartialEq, Clone)]
+impl Cached for Exported {}
+
+#[derive(Debug, PartialEq, Clone, Decode, Encode, Hash)]
 pub enum Expression {
     NumberExpression {
         value: String,
@@ -873,7 +908,9 @@ pub enum Expression {
     },
 }
 
-#[derive(Debug, PartialEq, Clone)]
+impl Cached for Expression {}
+
+#[derive(Debug, PartialEq, Clone, Decode, Encode, Hash)]
 pub enum UnaryOpType {
     Add,
     Subtract,
@@ -882,14 +919,20 @@ pub enum UnaryOpType {
     Mod,
 }
 
-#[derive(Debug)]
+impl Cached for UnaryOpType {}
+
+#[derive(Debug, Decode, Encode, Hash)]
 pub enum VariableType {
     Const,
     Final,
 }
 
-#[derive(Debug, PartialEq)]
+impl Cached for VariableType {}
+
+#[derive(Debug, PartialEq, Decode, Encode, Hash)]
 pub struct Block(Vec<FunctionBlockStatements>);
+
+impl Cached for Block {}
 impl Block {
     pub fn push(&mut self, input: FunctionBlockStatements) {
         self.0.push(input);

@@ -1,96 +1,73 @@
-pub mod parser;
+pub mod hir;
 pub mod tokenizer;
 
-use crate::parser::{Parsed, Parser};
-use crate::tokenizer::tokentree::TokenTree;
-use crate::tokenizer::{Token, Tokenizer};
+use crate::hir::{HIRGenerator, hirtree::HIRTree};
+use crate::tokenizer::{Token, Tokenizer, tokentree::TokenTree};
+use pipec_cache::{Cached, Decode, Encode, Link};
 use pipec_globals::GLOBALS;
-pub fn generate_ast(input: &str) -> Result<(), std::io::Error> {
-    let (_loader, loader_link) = FileLoader::new((GLOBALS).file.clone())?;
-    let (mut token_loader, token_loader_link) = TokenLoader::new(loader_link);
-    token_loader.tokenize(input);
-    token_loader.upload(token_loader_link);
-    token_loader.print_tokens();
-    let mut parser = Parser::new(token_loader.tree());
-    loop {
-        let next = parser.parse_value();
-        if next == Parsed::EOF {
-            break;
-        }
-        println!("{:#?}", next);
-    }
+use std::{fs::File, io::Read, path::PathBuf};
 
+pub fn generate_ast() -> Result<(), std::io::Error> {
+    let (mut reader, reader_link) = ASTFileReader::new(GLOBALS.file.clone())?;
+    reader.generate_ast();
+    reader.upload_to_cache(reader_link);
     Ok(())
 }
 
-use pipec_cache::{Cached, Decode, Encode, Link};
-use std::{fs::File, io::Read, path::PathBuf};
-#[derive(Hash, Decode, Encode)]
-pub struct FileLoader {
+#[derive(Hash, Decode, Encode, Debug)]
+pub struct FileInfo {
     file: PathBuf,
-    filecontent: String,
+    toks: TokenTree,
 }
-impl Cached for FileLoader {}
 
-impl FileLoader {
-    fn new(input: PathBuf) -> Result<(Self, Link), std::io::Error> {
-        let mut file = File::open(&input)?;
-        let mut filecontent = String::with_capacity(1000);
-        file.read_to_string(&mut filecontent)?;
-        let mut out = Self {
-            file: input,
-            filecontent,
+impl Cached for FileInfo {}
+
+#[derive(Hash, Decode, Encode, Debug)]
+pub struct ASTFileReader {
+    stage: FileReaderStage,
+    file: FileInfo,
+}
+
+impl Cached for ASTFileReader {}
+
+impl ASTFileReader {
+    pub fn new(dir: PathBuf) -> Result<(Self, Link), std::io::Error> {
+        let mut buf = String::with_capacity(2000);
+        let mut file = File::open(&dir)?;
+        file.read_to_string(&mut buf)?;
+        let tokenizer = Tokenizer::new(&buf);
+        let toks = tokenizer.tree();
+        let mut first = Self {
+            file: FileInfo {
+                file: dir.clone(),
+                toks,
+            },
+            stage: FileReaderStage::default(),
         };
-        let link = out.get_link();
-        out.try_load();
-        Ok((out, link))
+        first.try_load();
+        println!("{first:#?}");
+        let link = first.get_link();
+        Ok((first, link))
+    }
+
+    pub fn generate_ast(&mut self) {
+        let hirgenerator = HIRGenerator::new(&mut self.file.toks);
+
+        self.stage = FileReaderStage::HIR {
+            tree: hirgenerator.tree(),
+        }
+    }
+
+    pub fn upload_to_cache(&mut self, link: Link) {
+        self.upload(link);
     }
 }
 
-#[derive(Hash, Decode, Encode)]
-pub struct TokenLoader {
-    workingon: Link,
-    pub tokens: Option<Vec<Token>>,
-}
-impl Cached for TokenLoader {}
-
-impl TokenLoader {
-    pub fn new(link: Link) -> (Self, Link) {
-        let mut out = Self {
-            workingon: link,
-            tokens: None,
-        };
-        let out_link = out.get_link();
-        out.try_load();
-        (out, out_link)
-    }
-
-    pub fn tree(self) -> TokenTree {
-        TokenTree::new(self.tokens.unwrap())
-    }
-
-    pub fn tokenize(&mut self, input: &str) {
-        if self.tokens.is_some() {
-            return;
-        }
-        let mut tokenizer = Tokenizer::new(input);
-        let mut tokens = Vec::with_capacity(200);
-        loop {
-            let next = tokenizer.consume_next_token();
-            if next == Token::EOF {
-                break;
-            }
-
-            tokens.push(next);
-        }
-        self.tokens = Some(tokens);
-    }
-
-    pub fn print_tokens(&self) {
-        if let Some(ref tokens) = self.tokens {
-            for token in tokens {
-                println!("{:#?}", token);
-            }
-        }
-    }
+#[derive(Default, Hash, Decode, Encode, Debug)]
+pub enum FileReaderStage {
+    #[default]
+    First,
+    HIR {
+        tree: HIRTree,
+    },
 }
