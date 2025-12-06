@@ -39,6 +39,7 @@ impl<'this> HIRGenerator<'this> {
         match self.peek_stream() {
             Some(v) => match v {
                 Token::UsingKeyword => self.consume_using_keyword(),
+                Token::ModKeyword => self.consume_mod_keyword(),
                 Token::MainKeyword => self.consume_main_keyword(),
                 Token::ComponentKeyword => self.consume_component_keyword(),
                 _v => {
@@ -47,6 +48,15 @@ impl<'this> HIRGenerator<'this> {
             },
             None => HIRNode::EOF,
         }
+    }
+
+    #[inline]
+    pub(crate) fn consume_mod_keyword(&mut self) -> HIRNode {
+        self.advance_stream();
+        self.consume_whitespace();
+        let path = self.consume_a_path();
+        self.consume_a_semicolon();
+        HIRNode::ModStatement { path }
     }
 
     #[inline]
@@ -751,7 +761,7 @@ impl<'this> HIRGenerator<'this> {
     }
 }
 #[derive(Clone, Debug, PartialEq, Default, Decode, Encode, Hash)]
-pub struct Path(Vec<PathNode>);
+pub struct Path(pub Vec<PathNode>);
 
 impl Cached for Path {}
 
@@ -759,12 +769,24 @@ impl Path {
     pub fn add_child(&mut self, input: PathNode) {
         self.0.push(input);
     }
+
+    pub fn only_paramless(&self) -> bool {
+        for i in &self.0 {
+            match i.param {
+                None => {}
+                _ => {
+                    return false;
+                }
+            }
+        }
+        true
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Decode, Encode, Hash)]
 pub struct PathNode {
-    name: String,
-    param: Option<FunctionNodeParams>,
+    pub name: String,
+    pub param: Option<FunctionNodeParams>,
 }
 
 #[derive(Clone, Debug, PartialEq, Decode, Encode, Hash)]
@@ -788,6 +810,9 @@ pub enum HIRNode {
     },
     UsingStatement {
         using: Path,
+    },
+    ModStatement {
+        path: Path,
     },
     EOF,
 }
