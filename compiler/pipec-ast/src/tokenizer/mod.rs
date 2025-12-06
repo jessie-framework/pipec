@@ -396,6 +396,7 @@ impl<'chars> Tokenizer<'chars> {
             "export" => ExportKeyword,
             "public" => PublicKeyword,
             "required" => RequiredKeyword,
+            "mod" => ModKeyword,
             _ => Ident(input),
         }
     }
@@ -507,6 +508,8 @@ pub enum Token {
     PublicKeyword,
     /// required
     RequiredKeyword,
+    /// mod
+    ModKeyword,
     /// 21213
     Digit { val: String, digittype: DigitType },
     /// things_like_this or this_2
