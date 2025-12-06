@@ -8,8 +8,10 @@ use pipec_globals::GLOBALS;
 use std::{fs::File, io::Read, path::PathBuf};
 
 pub fn generate_ast() -> Result<(), std::io::Error> {
-    let (mut reader, reader_link) = ASTFileReader::new(GLOBALS.file.clone())?;
-    reader.generate_ast();
+    let mut guard = RecursiveGuard::default();
+    let path = GLOBALS.file.clone();
+    let (mut reader, reader_link) = ASTFileReader::new(path)?;
+    reader.generate_hir(&mut guard);
     reader.upload_to_cache(reader_link);
     Ok(())
 }
@@ -24,8 +26,26 @@ impl Cached for FileInfo {}
 
 #[derive(Hash, Decode, Encode, Debug)]
 pub struct ASTFileReader {
-    stage: FileReaderStage,
     file: FileInfo,
+}
+
+/// Prevents the compiler from accidentally parsing a recursive dependency.
+pub struct RecursiveGuard(Vec<PathBuf>);
+
+impl RecursiveGuard {
+    pub fn contains(&self, input: &PathBuf) -> bool {
+        self.0.contains(input)
+    }
+
+    pub fn push(&mut self, input: PathBuf) {
+        self.0.push(input);
+    }
+}
+
+impl Default for RecursiveGuard {
+    fn default() -> Self {
+        Self(Vec::with_capacity(100))
+    }
 }
 
 impl Cached for ASTFileReader {}
@@ -42,32 +62,18 @@ impl ASTFileReader {
                 file: dir.clone(),
                 toks,
             },
-            stage: FileReaderStage::default(),
         };
         first.try_load();
-        println!("{first:#?}");
         let link = first.get_link();
         Ok((first, link))
     }
 
-    pub fn generate_ast(&mut self) {
-        let hirgenerator = HIRGenerator::new(&mut self.file.toks);
-
-        self.stage = FileReaderStage::HIR {
-            tree: hirgenerator.tree(),
-        }
+    pub fn generate_hir(&mut self, guard: &mut RecursiveGuard) -> HIRTree {
+        let hirgenerator = HIRGenerator::new(&mut self.file.toks, self.file.file.clone(), guard);
+        hirgenerator.tree()
     }
 
     pub fn upload_to_cache(&mut self, link: Link) {
         self.upload(link);
     }
-}
-
-#[derive(Default, Hash, Decode, Encode, Debug)]
-pub enum FileReaderStage {
-    #[default]
-    First,
-    HIR {
-        tree: HIRTree,
-    },
 }

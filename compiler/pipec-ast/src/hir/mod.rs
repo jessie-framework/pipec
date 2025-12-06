@@ -1,4 +1,8 @@
+use std::path::PathBuf;
+
 use self::hirtree::HIRTree;
+use crate::ASTFileReader;
+use crate::RecursiveGuard;
 use crate::tokenizer::DigitType;
 use crate::tokenizer::Token;
 use crate::tokenizer::tokentree::TokenTree;
@@ -8,6 +12,8 @@ pub mod hirtree;
 
 pub struct HIRGenerator<'this> {
     tokens: &'this mut TokenTree,
+    guard: &'this mut RecursiveGuard,
+    path: PathBuf,
 }
 
 impl<'this> HIRGenerator<'this> {
@@ -22,8 +28,17 @@ impl<'this> HIRGenerator<'this> {
         }
         HIRTree::new(out)
     }
-    pub fn new(tokens: &'this mut TokenTree) -> Self {
-        Self { tokens }
+    pub fn new(
+        tokens: &'this mut TokenTree,
+        path: PathBuf,
+        guard: &'this mut RecursiveGuard,
+    ) -> Self {
+        let path = path.parent().unwrap().to_path_buf();
+        Self {
+            tokens,
+            path,
+            guard,
+        }
     }
     #[inline]
     pub(crate) fn advance_stream(&mut self) -> Option<&Token> {
@@ -54,9 +69,95 @@ impl<'this> HIRGenerator<'this> {
     pub(crate) fn consume_mod_keyword(&mut self) -> HIRNode {
         self.advance_stream();
         self.consume_whitespace();
-        let path = self.consume_a_path();
-        self.consume_a_semicolon();
-        HIRNode::ModStatement { path }
+        let mod_path = match self.advance_stream() {
+            Some(Token::Ident(v)) => v.to_owned(),
+            _ => {
+                //todo : compiler error
+                unreachable!()
+            }
+        };
+        self.consume_whitespace();
+        match self.peek_stream() {
+            Some(Token::Semicolon) => self.consume_node_from_fs(mod_path),
+            Some(Token::LeftCurly) => self.consume_mod_block(mod_path),
+            _ => {
+                //TODO : compiler error
+                unreachable!()
+            }
+        }
+    }
+
+    #[inline]
+    pub(crate) fn consume_mod_block(&mut self, mod_path: String) -> HIRNode {
+        self.advance_stream();
+        let mut nodes = Vec::with_capacity(10);
+        loop {
+            self.consume_whitespace();
+            if self.peek_stream() == Some(&Token::RightCurly) {
+                self.advance_stream();
+                break;
+            }
+            nodes.push(self.parse_value());
+        }
+        HIRNode::ModStatement {
+            name: mod_path,
+            tree: HIRTree::from_vec(nodes),
+        }
+    }
+
+    #[inline]
+    pub(crate) fn consume_node_from_fs(&mut self, mod_path: String) -> HIRNode {
+        self.advance_stream();
+        let path1 = {
+            let mut cloned = self.path.clone();
+            cloned.push(format!("{}/mod.pipec", &mod_path));
+            cloned
+        };
+        let path2 = {
+            let mut cloned = self.path.clone();
+            cloned.push(format!("{}.pipec", &mod_path));
+            cloned
+        };
+
+        if self.guard.contains(&path1) || self.guard.contains(&path2) {
+            //TODO : compiler error
+            unreachable!();
+        }
+        self.guard.push(path1.clone());
+        self.guard.push(path2.clone());
+
+        if path1.exists() && path2.exists() {
+            // TODO : compiler error
+            unreachable!();
+        }
+        if path1.exists() {
+            let (mut reader, link) = ASTFileReader::new(path1).unwrap_or_else(|_| {
+                // TODO : compiler error
+                unreachable!();
+            });
+            let hir = reader.generate_hir(self.guard);
+            reader.upload_to_cache(link);
+            return HIRNode::ModStatement {
+                name: mod_path,
+                tree: hir,
+            };
+        }
+
+        if path2.exists() {
+            let (mut reader, link) = ASTFileReader::new(path2).unwrap_or_else(|_| {
+                // TODO : compiler error
+                unreachable!();
+            });
+            let hir = reader.generate_hir(self.guard);
+            reader.upload_to_cache(link);
+            return HIRNode::ModStatement {
+                name: mod_path,
+                tree: hir,
+            };
+        }
+
+        println!("{path1:#?},{path2:#?}");
+        unreachable!()
     }
 
     #[inline]
@@ -812,7 +913,8 @@ pub enum HIRNode {
         using: Path,
     },
     ModStatement {
-        path: Path,
+        name: String,
+        tree: HIRTree,
     },
     EOF,
 }
