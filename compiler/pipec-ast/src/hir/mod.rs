@@ -59,11 +59,80 @@ impl<'this> HIRGenerator<'this> {
                 Token::ModKeyword => self.consume_mod_keyword(),
                 Token::MainKeyword => self.consume_main_keyword(),
                 Token::ComponentKeyword => self.consume_component_keyword(),
+                Token::ViewportKeyword => self.consume_viewport_keyword(),
                 _v => {
                     todo!();
                 }
             },
             None => HIRNode::EOF,
+        }
+    }
+
+    #[inline]
+    pub(crate) fn consume_viewport_keyword(&mut self) -> HIRNode {
+        self.advance_stream();
+        self.consume_whitespace();
+        let name = self.must_ident();
+        self.consume_whitespace();
+        let params = self.consume_function_parameters();
+        self.consume_whitespace();
+        let block = self.consume_function_block();
+        HIRNode::ViewportDeclaration {
+            name,
+            params,
+            block,
+        }
+    }
+
+    #[inline]
+    pub(crate) fn next_is(&mut self, next: Token) -> bool {
+        self.peek_stream() == Some(&next)
+    }
+
+    #[inline]
+    pub(crate) fn consume_function_parameters(&mut self) -> FunctionDeclarationParameters {
+        let mut out = FunctionDeclarationParameters::new();
+        self.must(Token::LeftParenthesis);
+        loop {
+            self.consume_whitespace();
+            if self.next_is(Token::RightParenthesis) {
+                self.advance_stream();
+                break;
+            }
+            out.push(self.consume_function_parameter());
+            self.consume_whitespace();
+            if self.next_is(Token::Comma) {
+                self.advance_stream();
+                continue;
+            }
+        }
+        out
+    }
+
+    #[inline]
+    pub(crate) fn must_ident(&mut self) -> String {
+        if let Some(Token::Ident(v)) = self.advance_stream() {
+            return v.to_string();
+        }
+        unreachable!()
+    }
+
+    #[inline]
+    pub(crate) fn consume_function_parameter(&mut self) -> FunctionDeclarationParameter {
+        let name = self.must_ident();
+        self.consume_whitespace();
+        self.must(Token::Colon);
+        self.consume_whitespace();
+        let arg_type = self.consume_a_path();
+
+        FunctionDeclarationParameter { name, arg_type }
+    }
+
+    #[inline]
+    pub(crate) fn must(&mut self, val: Token) {
+        if self.advance_stream() != Some(&val) {
+            // TODO : compiler error
+            unreachable!()
         }
     }
 
@@ -359,7 +428,6 @@ impl<'this> HIRGenerator<'this> {
         match self.peek_stream() {
             Some(v) => match v {
                 Token::LetKeyword => self.consume_variable_declaration(),
-                Token::ViewportKeyword => self.consume_viewport_block(),
                 Token::ExportKeyword => self.consume_export_declaration(),
                 _ => self.consume_expression_statement(),
             },
@@ -441,43 +509,6 @@ impl<'this> HIRGenerator<'this> {
                 //TODO : compiler error
                 unreachable!();
             }
-        }
-    }
-
-    #[inline]
-    pub(crate) fn consume_viewport_block(&mut self) -> FunctionBlockStatements {
-        self.advance_stream();
-        self.consume_whitespace();
-        match self.advance_stream() {
-            Some(Token::LeftParenthesis) => {}
-            _v => {
-                //TODO : compiler error
-                unreachable!();
-            }
-        }
-        let width = self.consume_an_expression();
-        match self.advance_stream() {
-            Some(Token::Comma) => {}
-            _v => {
-                //TODO : compiler error
-                unreachable!();
-            }
-        }
-        let height = self.consume_an_expression();
-        match self.advance_stream() {
-            Some(Token::RightParenthesis) => {}
-            _v => {
-                //TODO : compiler error
-                unreachable!();
-            }
-        }
-        self.consume_whitespace();
-        let block = self.consume_function_block();
-
-        FunctionBlockStatements::ViewportBlock {
-            width,
-            height,
-            block,
         }
     }
 
@@ -915,9 +946,17 @@ pub enum HIRNode {
     MainFunction {
         block: Block,
     },
-    FunctionBlock {
-        contents: Block,
+    FunctionDeclaration {
+        name: String,
+        params: FunctionDeclarationParameters,
+        block: Block,
     },
+    ViewportDeclaration {
+        name: String,
+        params: FunctionDeclarationParameters,
+        block: Block,
+    },
+
     StaticVariableDeclaration, // TODO
     ComponentDeclaration {
         name: String,
@@ -992,11 +1031,6 @@ pub enum FunctionBlockStatements {
         variabletype: Option<Path>,
         declarationexpression: Option<Expression>,
         is_mutable: bool,
-    },
-    ViewportBlock {
-        width: Expression,
-        height: Expression,
-        block: Block,
     },
     ExpressionStatement {
         expression: Expression,
@@ -1086,3 +1120,23 @@ impl Default for Block {
         Self(Vec::with_capacity(30))
     }
 }
+
+#[derive(Debug, Hash, Decode, Encode, PartialEq)]
+pub struct FunctionDeclarationParameters(Vec<FunctionDeclarationParameter>);
+impl Cached for FunctionDeclarationParameters {}
+
+impl FunctionDeclarationParameters {
+    pub(crate) fn new() -> Self {
+        Self(Vec::with_capacity(10))
+    }
+    pub(crate) fn push(&mut self, val: FunctionDeclarationParameter) {
+        self.0.push(val);
+    }
+}
+
+#[derive(Debug, Hash, Decode, Encode, PartialEq)]
+pub struct FunctionDeclarationParameter {
+    name: String,
+    arg_type: Path,
+}
+impl Cached for FunctionDeclarationParameter {}
