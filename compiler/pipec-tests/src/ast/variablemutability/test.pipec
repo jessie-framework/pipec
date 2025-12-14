@@ -1,0 +1,4 @@
+main {
+	let x = 0;
+	let mut x = 0;
+}
