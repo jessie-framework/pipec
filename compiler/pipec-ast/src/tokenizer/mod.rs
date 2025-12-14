@@ -129,6 +129,10 @@ impl<'chars> Tokenizer<'chars> {
     #[inline]
     pub(crate) fn consume_minus(&mut self) -> Token {
         self.advance_stream();
+        if self.peek_stream() == &Some('>') {
+            self.advance_stream();
+            return Token::ThinArrow;
+        }
         Token::Minus
     }
     #[inline]
@@ -398,6 +402,7 @@ impl<'chars> Tokenizer<'chars> {
             "required" => RequiredKeyword,
             "mod" => ModKeyword,
             "mut" => MutKeyword,
+            "function" => FunctionKeyword,
             _ => Ident(input),
         }
     }
@@ -429,6 +434,8 @@ pub enum Token {
     And,
     /// ||
     Or,
+    /// ->
+    ThinArrow,
     /// @
     AtSign,
     /// =
@@ -513,6 +520,8 @@ pub enum Token {
     ModKeyword,
     /// mut
     MutKeyword,
+    /// function
+    FunctionKeyword,
     /// 21213
     Digit { val: String, digittype: DigitType },
     /// things_like_this or this_2

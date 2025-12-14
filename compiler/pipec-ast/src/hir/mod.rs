@@ -44,6 +44,7 @@ impl<'this> HIRGenerator<'this> {
 
     #[inline]
     pub(crate) fn advance_stream(&mut self) -> Option<&Token> {
+        println!("{:#?}", self.peek_stream());
         self.tokens.next_token()
     }
     #[inline]
@@ -60,11 +61,37 @@ impl<'this> HIRGenerator<'this> {
                 Token::MainKeyword => self.consume_main_keyword(),
                 Token::ComponentKeyword => self.consume_component_keyword(),
                 Token::ViewportKeyword => self.consume_viewport_keyword(),
+                Token::FunctionKeyword => self.consume_function_keyword(),
                 _v => {
                     todo!();
                 }
             },
             None => HIRNode::EOF,
+        }
+    }
+
+    #[inline]
+    pub(crate) fn consume_function_keyword(&mut self) -> HIRNode {
+        self.advance_stream();
+        self.consume_whitespace();
+        let name = self.must_ident();
+        self.consume_whitespace();
+        let params = self.consume_function_parameters();
+        self.consume_whitespace();
+        let mut out_type = None;
+        if self.next_is(Token::ThinArrow) {
+            self.advance_stream();
+            self.consume_whitespace();
+            out_type = Some(self.consume_a_path());
+        }
+        self.consume_whitespace();
+        let block = self.consume_function_block();
+
+        HIRNode::FunctionDeclaration {
+            name,
+            params,
+            block,
+            out_type,
         }
     }
 
@@ -950,6 +977,7 @@ pub enum HIRNode {
         name: String,
         params: FunctionDeclarationParameters,
         block: Block,
+        out_type: Option<Path>,
     },
     ViewportDeclaration {
         name: String,
