@@ -41,6 +41,7 @@ impl<'this> HIRGenerator<'this> {
             guard,
         }
     }
+
     #[inline]
     pub(crate) fn advance_stream(&mut self) -> Option<&Token> {
         self.tokens.next_token()
@@ -488,9 +489,20 @@ impl<'this> HIRGenerator<'this> {
         let varname: String;
         let vartype: Option<Path>;
         let declexpr: Option<Expression>;
+        let mut is_mutable = false;
         match self.advance_stream() {
             Some(Token::Ident(variable_name)) => {
                 varname = variable_name.to_string();
+            }
+            Some(Token::MutKeyword) => {
+                is_mutable = true;
+                self.consume_whitespace();
+                if let Some(Token::Ident(variable_name)) = self.advance_stream() {
+                    varname = variable_name.to_string();
+                } else {
+                    //TODO : compiler error
+                    unreachable!()
+                }
             }
             _ => {
                 //TODO: compiler error
@@ -532,6 +544,7 @@ impl<'this> HIRGenerator<'this> {
             variablename: varname,
             variabletype: vartype,
             declarationexpression: declexpr,
+            is_mutable,
         }
         // TODO : update this function
     }
@@ -978,6 +991,7 @@ pub enum FunctionBlockStatements {
         variablename: String,
         variabletype: Option<Path>,
         declarationexpression: Option<Expression>,
+        is_mutable: bool,
     },
     ViewportBlock {
         width: Expression,
