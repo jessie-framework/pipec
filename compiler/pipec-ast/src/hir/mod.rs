@@ -28,6 +28,7 @@ impl<'this> HIRGenerator<'this> {
         }
         HIRTree::new(out)
     }
+
     pub fn new(
         tokens: &'this mut TokenTree,
         path: PathBuf,

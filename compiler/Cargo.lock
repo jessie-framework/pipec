@@ -189,6 +189,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "pipec-mir"
+version = "0.1.0"
+dependencies = [
+ "pipec-ast",
+]
+
+[[package]]
 name = "pipecc"
 version = "0.1.0"
 dependencies = [

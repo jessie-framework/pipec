@@ -11,7 +11,6 @@ pub trait Cached: Encode + Decode<()> + Hash {
     fn get_link(&self) -> Link {
         let mut hasher = DefaultHasher::new();
         self.hash(&mut hasher);
-        println!("getting link");
         Link(hasher.finish())
     }
 
@@ -25,16 +24,13 @@ pub trait Cached: Encode + Decode<()> + Hash {
                     match decoded {
                         Ok((v, _)) => {
                             *self = v;
-                            println!("self decoded");
                         }
                         Err(_e) => {
-                            println!("error {_e}");
                             let _ = std::fs::remove_file(file);
                         }
                     }
                 }
                 Err(_e) => {
-                    println!("another error {_e},{:#?}", self.file());
                     // prob should insert some logic
                 }
             }
@@ -47,7 +43,6 @@ pub trait Cached: Encode + Decode<()> + Hash {
     }
 
     fn upload(&self, link: Link) {
-        println!("uploaded to cache {link:#?}");
         match GLOBALS.cache.as_ref() {
             None => {}
             Some(dir) => {
