@@ -1,0 +1,2 @@
+function random_function_name(arg1 : this , arg2 : that) {}
+function random_function_name(arg1 : this , arg2 : that) -> u32 {}
