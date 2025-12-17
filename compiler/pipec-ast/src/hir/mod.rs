@@ -933,12 +933,16 @@ impl<'this> HIRGenerator<'this> {
         }
     }
 }
-#[derive(Clone, Debug, PartialEq, Default, Decode, Encode, Hash)]
+#[derive(Clone, Debug, PartialEq, Default, Decode, Encode, Hash, Eq)]
 pub struct Path(pub Vec<PathNode>);
 
 impl Cached for Path {}
 
 impl Path {
+    pub fn inner(&self) -> &[PathNode] {
+        &self.0
+    }
+
     pub fn add_child(&mut self, input: PathNode) {
         self.0.push(input);
     }
@@ -956,19 +960,19 @@ impl Path {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Decode, Encode, Hash)]
+#[derive(Clone, Debug, PartialEq, Decode, Encode, Hash, Eq)]
 pub struct PathNode {
     pub name: String,
     pub param: Option<FunctionNodeParams>,
 }
 
-#[derive(Clone, Debug, PartialEq, Decode, Encode, Hash)]
+#[derive(Clone, Debug, PartialEq, Decode, Encode, Hash, Eq)]
 pub enum FunctionNodeParams {
     Tuple(Vec<Expression>),
     Angles(Vec<Path>),
 }
 
-#[derive(Debug, PartialEq, Decode, Encode, Hash)]
+#[derive(Debug, PartialEq, Decode, Encode, Hash, Clone)]
 pub enum HIRNode {
     MainFunction {
         block: Block,
@@ -1002,14 +1006,14 @@ pub enum HIRNode {
 
 impl Cached for HIRNode {}
 
-#[derive(Debug, PartialEq, Decode, Encode, Hash)]
+#[derive(Debug, PartialEq, Decode, Encode, Hash, Clone)]
 pub struct ComponentDeclarationBlock {
     contents: Vec<ComponentDeclarationBlockStatements>,
 }
 
 impl Cached for ComponentDeclarationBlock {}
 
-#[derive(Debug, PartialEq, Decode, Encode, Hash)]
+#[derive(Debug, PartialEq, Decode, Encode, Hash, Clone)]
 pub enum ComponentDeclarationBlockStatements {
     FinalVariableDeclaration {
         variablename: String,
@@ -1030,7 +1034,7 @@ pub enum ComponentDeclarationBlockStatements {
 
 impl Cached for ComponentDeclarationBlockStatements {}
 
-#[derive(Debug, PartialEq, Decode, Encode, Hash)]
+#[derive(Debug, PartialEq, Decode, Encode, Hash, Clone)]
 pub struct RenderBlock {
     vertices_block: VerticesBlock,
     fragments_block: FragmentsBlock,
@@ -1038,21 +1042,21 @@ pub struct RenderBlock {
 
 impl Cached for RenderBlock {}
 
-#[derive(Debug, PartialEq, Decode, Encode, Hash)]
+#[derive(Debug, PartialEq, Decode, Encode, Hash, Clone)]
 pub struct VerticesBlock {
     block: Block,
 }
 
 impl Cached for VerticesBlock {}
 
-#[derive(Debug, PartialEq, Decode, Encode, Hash)]
+#[derive(Debug, PartialEq, Decode, Encode, Hash, Clone)]
 pub struct FragmentsBlock {
     block: Block,
 }
 
 impl Cached for FragmentsBlock {}
 
-#[derive(Debug, PartialEq, Decode, Encode, Hash)]
+#[derive(Debug, PartialEq, Decode, Encode, Hash, Clone)]
 pub enum FunctionBlockStatements {
     VariableDeclaration {
         variablename: String,
@@ -1072,7 +1076,7 @@ pub enum FunctionBlockStatements {
 
 impl Cached for FunctionBlockStatements {}
 
-#[derive(Debug, PartialEq, Decode, Encode, Hash)]
+#[derive(Debug, PartialEq, Decode, Encode, Hash, Clone)]
 pub enum Exported {
     ColorBuiltin,
     PositionBuiltin,
@@ -1081,7 +1085,7 @@ pub enum Exported {
 
 impl Cached for Exported {}
 
-#[derive(Debug, PartialEq, Clone, Decode, Encode, Hash)]
+#[derive(Debug, PartialEq, Clone, Decode, Encode, Hash, Eq)]
 pub enum Expression {
     NumberExpression {
         value: String,
@@ -1114,7 +1118,7 @@ pub enum Expression {
 
 impl Cached for Expression {}
 
-#[derive(Debug, PartialEq, Clone, Decode, Encode, Hash)]
+#[derive(Debug, PartialEq, Clone, Decode, Encode, Hash, Eq)]
 pub enum UnaryOpType {
     Add,
     Subtract,
@@ -1133,7 +1137,7 @@ pub enum VariableType {
 
 impl Cached for VariableType {}
 
-#[derive(Debug, PartialEq, Decode, Encode, Hash)]
+#[derive(Debug, PartialEq, Decode, Encode, Hash, Clone)]
 pub struct Block(Vec<FunctionBlockStatements>);
 
 impl Cached for Block {}
@@ -1149,7 +1153,7 @@ impl Default for Block {
     }
 }
 
-#[derive(Debug, Hash, Decode, Encode, PartialEq)]
+#[derive(Debug, Hash, Decode, Encode, PartialEq, Clone)]
 pub struct FunctionDeclarationParameters(Vec<FunctionDeclarationParameter>);
 impl Cached for FunctionDeclarationParameters {}
 
@@ -1160,11 +1164,14 @@ impl FunctionDeclarationParameters {
     pub(crate) fn push(&mut self, val: FunctionDeclarationParameter) {
         self.0.push(val);
     }
+    pub fn handle(&self) -> &[FunctionDeclarationParameter] {
+        &self.0
+    }
 }
 
-#[derive(Debug, Hash, Decode, Encode, PartialEq)]
+#[derive(Debug, Hash, Decode, Encode, PartialEq, Clone)]
 pub struct FunctionDeclarationParameter {
     name: String,
-    arg_type: Path,
+    pub arg_type: Path,
 }
 impl Cached for FunctionDeclarationParameter {}

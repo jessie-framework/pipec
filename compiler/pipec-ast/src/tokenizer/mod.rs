@@ -532,7 +532,7 @@ pub enum Token {
     EOF,
 }
 
-#[derive(PartialEq, Debug, Decode, Encode, Hash, Clone, Copy)]
+#[derive(PartialEq, Debug, Decode, Encode, Hash, Clone, Copy, Eq)]
 pub enum DigitType {
     Float,
     Int,
