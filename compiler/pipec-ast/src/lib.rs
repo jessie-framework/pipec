@@ -4,17 +4,8 @@ pub mod tokenizer;
 use crate::hir::{HIRGenerator, hirtree::HIRTree};
 use crate::tokenizer::{Token, Tokenizer, tokentree::TokenTree};
 use pipec_cache::{Cached, Decode, Encode, Link};
-use pipec_globals::GLOBALS;
+use std::sync::Arc;
 use std::{fs::File, io::Read, path::PathBuf};
-
-pub fn generate_ast() -> Result<(), std::io::Error> {
-    let mut guard = RecursiveGuard::default();
-    let path = GLOBALS.file.clone();
-    let (mut reader, reader_link) = ASTFileReader::new(path)?;
-    reader.generate_hir(&mut guard);
-    reader.upload_to_cache(reader_link);
-    Ok(())
-}
 
 #[derive(Hash, Decode, Encode, Debug)]
 pub struct FileInfo {
@@ -51,9 +42,12 @@ impl Default for RecursiveGuard {
 impl Cached for ASTFileReader {}
 
 impl ASTFileReader {
-    pub fn new(dir: PathBuf) -> Result<(Self, Link), std::io::Error> {
+    pub fn new(
+        dir: &PathBuf,
+        cache_dir: Arc<Option<PathBuf>>,
+    ) -> Result<(Self, Link), std::io::Error> {
         let mut buf = String::with_capacity(2000);
-        let mut file = File::open(&dir)?;
+        let mut file = File::open(dir)?;
         file.read_to_string(&mut buf)?;
         let tokenizer = Tokenizer::new(&buf);
         let toks = tokenizer.tree();
@@ -63,17 +57,26 @@ impl ASTFileReader {
                 toks,
             },
         };
-        first.try_load();
+        first.try_load(cache_dir);
         let link = first.get_link();
         Ok((first, link))
     }
 
-    pub fn generate_hir(&mut self, guard: &mut RecursiveGuard) -> HIRTree {
-        let hirgenerator = HIRGenerator::new(&mut self.file.toks, self.file.file.clone(), guard);
+    pub fn generate_hir(
+        &mut self,
+        guard: &mut RecursiveGuard,
+        cache_dir: Arc<Option<PathBuf>>,
+    ) -> HIRTree {
+        let hirgenerator = HIRGenerator::new(
+            &mut self.file.toks,
+            self.file.file.clone(),
+            guard,
+            cache_dir,
+        );
         hirgenerator.tree()
     }
 
-    pub fn upload_to_cache(&mut self, link: Link) {
-        self.upload(link);
+    pub fn upload_to_cache(&mut self, link: Link, cache_dir: Arc<Option<PathBuf>>) {
+        self.upload(link, cache_dir);
     }
 }

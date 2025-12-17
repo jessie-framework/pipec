@@ -1,4 +1,4 @@
-main {
+function main() {
 	let x = 0;
-	let mut x = 0;
+	let mutable x = 0;
 }

@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use self::hirtree::HIRTree;
 use crate::ASTFileReader;
@@ -14,6 +15,7 @@ pub struct HIRGenerator<'this> {
     tokens: &'this mut TokenTree,
     guard: &'this mut RecursiveGuard,
     path: PathBuf,
+    cache_dir: Arc<Option<PathBuf>>,
 }
 
 impl<'this> HIRGenerator<'this> {
@@ -33,12 +35,14 @@ impl<'this> HIRGenerator<'this> {
         tokens: &'this mut TokenTree,
         path: PathBuf,
         guard: &'this mut RecursiveGuard,
+        cache_dir: Arc<Option<PathBuf>>,
     ) -> Self {
         let path = path.parent().unwrap().to_path_buf();
         Self {
             tokens,
             path,
             guard,
+            cache_dir,
         }
     }
 
@@ -57,8 +61,7 @@ impl<'this> HIRGenerator<'this> {
         match self.peek_stream() {
             Some(v) => match v {
                 Token::UsingKeyword => self.consume_using_keyword(),
-                Token::ModKeyword => self.consume_mod_keyword(),
-                Token::MainKeyword => self.consume_main_keyword(),
+                Token::ModuleKeyword => self.consume_module_keyword(),
                 Token::ComponentKeyword => self.consume_component_keyword(),
                 Token::ViewportKeyword => self.consume_viewport_keyword(),
                 Token::FunctionKeyword => self.consume_function_keyword(),
@@ -164,7 +167,7 @@ impl<'this> HIRGenerator<'this> {
     }
 
     #[inline]
-    pub(crate) fn consume_mod_keyword(&mut self) -> HIRNode {
+    pub(crate) fn consume_module_keyword(&mut self) -> HIRNode {
         self.advance_stream();
         self.consume_whitespace();
         let mod_path = match self.advance_stream() {
@@ -229,12 +232,13 @@ impl<'this> HIRGenerator<'this> {
             unreachable!();
         }
         if path1.exists() {
-            let (mut reader, link) = ASTFileReader::new(path1).unwrap_or_else(|_| {
-                // TODO : compiler error
-                unreachable!();
-            });
-            let hir = reader.generate_hir(self.guard);
-            reader.upload_to_cache(link);
+            let (mut reader, link) = ASTFileReader::new(&path1, self.cache_dir.clone())
+                .unwrap_or_else(|_| {
+                    // TODO : compiler error
+                    unreachable!();
+                });
+            let hir = reader.generate_hir(self.guard, self.cache_dir.clone());
+            reader.upload_to_cache(link, self.cache_dir.clone());
             return HIRNode::ModStatement {
                 name: mod_path,
                 tree: hir,
@@ -242,12 +246,13 @@ impl<'this> HIRGenerator<'this> {
         }
 
         if path2.exists() {
-            let (mut reader, link) = ASTFileReader::new(path2).unwrap_or_else(|_| {
-                // TODO : compiler error
-                unreachable!();
-            });
-            let hir = reader.generate_hir(self.guard);
-            reader.upload_to_cache(link);
+            let (mut reader, link) = ASTFileReader::new(&path2, self.cache_dir.clone())
+                .unwrap_or_else(|_| {
+                    // TODO : compiler error
+                    unreachable!();
+                });
+            let hir = reader.generate_hir(self.guard, self.cache_dir.clone());
+            reader.upload_to_cache(link, self.cache_dir.clone());
             return HIRNode::ModStatement {
                 name: mod_path,
                 tree: hir,
@@ -423,15 +428,6 @@ impl<'this> HIRGenerator<'this> {
     }
 
     #[inline]
-    pub(crate) fn consume_main_keyword(&mut self) -> HIRNode {
-        self.advance_stream();
-        self.consume_whitespace();
-        HIRNode::MainFunction {
-            block: self.consume_function_block(),
-        }
-    }
-
-    #[inline]
     pub(crate) fn consume_function_block(&mut self) -> Block {
         if self.advance_stream() != Some(&Token::LeftCurly) {
             //TODO : compiler error because left curly bracket was expected
@@ -552,7 +548,7 @@ impl<'this> HIRGenerator<'this> {
             Some(Token::Ident(variable_name)) => {
                 varname = variable_name.to_string();
             }
-            Some(Token::MutKeyword) => {
+            Some(Token::MutableKeyword) => {
                 is_mutable = true;
                 self.consume_whitespace();
                 if let Some(Token::Ident(variable_name)) = self.advance_stream() {

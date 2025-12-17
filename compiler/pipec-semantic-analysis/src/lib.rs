@@ -1,1 +1,1 @@
-mod semantic_analyzer;
+pub mod semantic_analyzer;

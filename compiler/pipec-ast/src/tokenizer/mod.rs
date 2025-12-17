@@ -389,7 +389,6 @@ impl<'chars> Tokenizer<'chars> {
         use Token::*;
         match input.as_str() {
             "using" => UsingKeyword,
-            "main" => MainKeyword,
             "let" => LetKeyword,
             "viewport" => ViewportKeyword,
             "component" => ComponentKeyword,
@@ -400,8 +399,8 @@ impl<'chars> Tokenizer<'chars> {
             "export" => ExportKeyword,
             "public" => PublicKeyword,
             "required" => RequiredKeyword,
-            "mod" => ModKeyword,
-            "mut" => MutKeyword,
+            "module" => ModuleKeyword,
+            "mutable" => MutableKeyword,
             "function" => FunctionKeyword,
             _ => Ident(input),
         }
@@ -494,8 +493,6 @@ pub enum Token {
     Whitespace,
     /// using
     UsingKeyword,
-    /// main
-    MainKeyword,
     /// let
     LetKeyword,
     /// viewport
@@ -516,10 +513,10 @@ pub enum Token {
     PublicKeyword,
     /// required
     RequiredKeyword,
-    /// mod
-    ModKeyword,
-    /// mut
-    MutKeyword,
+    /// module
+    ModuleKeyword,
+    /// mutable
+    MutableKeyword,
     /// function
     FunctionKeyword,
     /// 21213

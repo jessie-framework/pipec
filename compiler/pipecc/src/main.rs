@@ -1,6 +1,3 @@
-use crate::readfile::read_file;
-
-mod readfile;
 fn main() {
-    let _ = read_file();
+    pipec_prelude::run_compiler();
 }
