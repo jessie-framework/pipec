@@ -19,35 +19,63 @@ pub struct ImportTree(HashMap<Path, Symbol>);
 #[derive(Debug, Default)]
 pub struct GlobalSymbolTree {
     symbols: HashMap<Path, Symbol>,
-    path: Path,
 }
 
 impl GlobalSymbolTree {
     pub fn gen_symbols(&mut self, tree: &mut HIRTree) {
         tree.reset();
+        let path = Path::default();
         loop {
             let next = tree.next_node();
             match next {
-                Some(v) => {
-                    if let HIRNode::FunctionDeclaration {
+                Some(v) => match v {
+                    HIRNode::FunctionDeclaration {
                         name,
                         params,
                         block: _,
                         out_type,
-                    } = v
-                    {
-                        self.add_function_declaration(name, params, out_type);
-                    }
-                    if let HIRNode::ViewportDeclaration {
+                    } => self.add_function_declaration(name, params, out_type, path.clone()),
+                    HIRNode::ViewportDeclaration {
                         name,
                         params,
                         block: _,
-                    } = v
-                    {
-                        self.add_viewport_declaration(name, params)
+                    } => self.add_viewport_declaration(name, params, path.clone()),
+                    HIRNode::ModStatement { name, tree } => {
+                        self.add_mod_statement(name, tree, path.clone())
                     }
-                }
+                    _ => {}
+                },
                 None => break,
+            }
+        }
+    }
+
+    #[inline]
+    pub(crate) fn add_mod_statement(&mut self, name: &String, tree: &HIRTree, mut path: Path) {
+        let stream = tree.stream();
+
+        path.add_child(PathNode {
+            name: name.to_string(),
+            param: None,
+        });
+        let path = path.clone();
+        for i in stream {
+            match i {
+                HIRNode::FunctionDeclaration {
+                    name,
+                    params,
+                    block: _,
+                    out_type,
+                } => self.add_function_declaration(name, params, out_type, path.clone()),
+                HIRNode::ViewportDeclaration {
+                    name,
+                    params,
+                    block: _,
+                } => self.add_viewport_declaration(name, params, path.clone()),
+                HIRNode::ModStatement { name, tree } => {
+                    self.add_mod_statement(name, tree, path.clone())
+                }
+                _ => {}
             }
         }
     }
@@ -57,8 +85,9 @@ impl GlobalSymbolTree {
         &mut self,
         name: &String,
         params: &FunctionDeclarationParameters,
+        path: Path,
     ) {
-        let mut path = self.path.clone();
+        let mut path = path.clone();
         path.add_child(PathNode {
             name: name.to_string(),
             param: None,
@@ -77,8 +106,9 @@ impl GlobalSymbolTree {
         name: &String,
         params: &FunctionDeclarationParameters,
         out_type: &Option<Path>,
+        path: Path,
     ) {
-        let mut path = self.path.clone();
+        let mut path = path.clone();
         path.add_child(PathNode {
             name: name.to_string(),
             param: None,

@@ -9,6 +9,10 @@ pub struct HIRTree {
 impl Cached for HIRTree {}
 
 impl HIRTree {
+    pub fn stream(&self) -> &[HIRNode] {
+        &self.stream
+    }
+
     pub fn new(input: Vec<HIRNode>) -> Self {
         Self {
             stream: input,
