@@ -1,7 +1,7 @@
 use super::HIRNode;
 use pipec_cache::{Cached, Decode, Encode};
 
-#[derive(PartialEq, Decode, Encode, Hash, Debug)]
+#[derive(PartialEq, Decode, Encode, Hash, Debug, Clone)]
 pub struct HIRTree {
     stream: Vec<HIRNode>,
     pos: usize,
@@ -30,5 +30,9 @@ impl HIRTree {
             stream: vec,
             pos: 0,
         }
+    }
+
+    pub fn reset(&mut self) {
+        self.pos = 0;
     }
 }
