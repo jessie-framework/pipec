@@ -15,19 +15,26 @@ impl ImportTree {
     }
 }
 
-#[derive(Debug)]
 /// A table to check the type of all symbols in the source code.
 /// It would look like this if flattened out :
 /// main : function() -> void;
 /// rect : component(fport,fport,fport,fport,std::graphics::color);
 /// math_utils::add_two : function(i32,i32) -> void;
 /// etc etc
+#[derive(Debug)]
 pub struct GlobalSymbolTree {
     symbols: HashMap<Path, Symbol>,
     path: Path,
 }
 
 impl GlobalSymbolTree {
+    pub fn new() -> Self {
+        Self {
+            symbols: HashMap::new(),
+            path: Path::default(),
+        }
+    }
+
     pub fn gen_symbols(&mut self, tree: &mut HIRTree) {
         tree.reset();
         loop {

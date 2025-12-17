@@ -1,10 +1,10 @@
 pub use bincode::{Decode, Encode};
 
-use pipec_globals::GLOBALS;
 use std::collections::hash_map::DefaultHasher;
 use std::fs::File;
 use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
+use std::sync::Arc;
 
 pub trait Cached: Encode + Decode<()> + Hash {
     /// Looks for the compilers cache if the struct exists.  If it does, turns the struct into whatever was in the cache.
@@ -15,8 +15,8 @@ pub trait Cached: Encode + Decode<()> + Hash {
     }
 
     /// Tries to load the struct to the compilers cache.
-    fn try_load(&mut self) {
-        if let Some(file) = self.file() {
+    fn try_load(&mut self, cache_dir: Arc<Option<PathBuf>>) {
+        if let Some(file) = self.file(cache_dir) {
             match std::fs::read(&file) {
                 Ok(v) => {
                     let decoded: Result<(Self, _), _> =
@@ -37,13 +37,15 @@ pub trait Cached: Encode + Decode<()> + Hash {
         }
     }
 
-    fn file(&mut self) -> Option<PathBuf> {
-        let cache_dir = GLOBALS.cache.as_ref();
-        cache_dir.map(|path| path.join(format!("{}.ppc", self.get_link().0)))
+    fn file(&mut self, cache_dir: Arc<Option<PathBuf>>) -> Option<PathBuf> {
+        cache_dir
+            .as_ref()
+            .clone()
+            .map(|path| path.join(format!("{}.ppc", self.get_link().0)))
     }
 
-    fn upload(&self, link: Link) {
-        match GLOBALS.cache.as_ref() {
+    fn upload(&self, link: Link, cache_dir: Arc<Option<PathBuf>>) {
+        match cache_dir.as_ref() {
             None => {}
             Some(dir) => {
                 if !dir.exists() {

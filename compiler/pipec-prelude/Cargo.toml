@@ -1,0 +1,10 @@
+[package]
+name = "pipec-prelude"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = "4.5.53"
+pipec-args = { version = "0.1.0", path = "../pipec-args" }
+pipec-ast = { version = "0.1.0", path = "../pipec-ast" }
+pipec-semantic-analysis = { version = "0.1.0", path = "../pipec-semantic-analysis" }
