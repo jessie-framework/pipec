@@ -7,13 +7,8 @@ pub struct SemanticAnalyzer {
     imports: ImportTree,
 }
 
+#[derive(Default)]
 pub struct ImportTree(HashMap<Path, Symbol>);
-
-impl ImportTree {
-    pub fn new() -> Self {
-        Self(HashMap::new())
-    }
-}
 
 /// A table to check the type of all symbols in the source code.
 /// It would look like this if flattened out :
@@ -21,20 +16,13 @@ impl ImportTree {
 /// rect : component(fport,fport,fport,fport,std::graphics::color);
 /// math_utils::add_two : function(i32,i32) -> void;
 /// etc etc
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct GlobalSymbolTree {
     symbols: HashMap<Path, Symbol>,
     path: Path,
 }
 
 impl GlobalSymbolTree {
-    pub fn new() -> Self {
-        Self {
-            symbols: HashMap::new(),
-            path: Path::default(),
-        }
-    }
-
     pub fn gen_symbols(&mut self, tree: &mut HIRTree) {
         tree.reset();
         loop {
@@ -170,7 +158,7 @@ impl SemanticAnalyzer {
     pub fn new(tree: HIRTree) -> Self {
         Self {
             stream: tree,
-            imports: ImportTree::new(),
+            imports: ImportTree::default(),
         }
     }
 }

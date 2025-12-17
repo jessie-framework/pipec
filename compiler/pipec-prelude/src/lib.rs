@@ -13,7 +13,7 @@ pub fn run_compiler() {
     let mut hirtree = reader.generate_hir(&mut guard, cache_dir.clone());
     reader.upload_to_cache(reader_link, cache_dir.clone());
 
-    let mut gst = GlobalSymbolTree::new();
+    let mut gst = GlobalSymbolTree::default();
     gst.gen_symbols(&mut hirtree);
     println!("{:#?}", gst);
 }
