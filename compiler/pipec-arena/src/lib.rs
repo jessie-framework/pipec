@@ -1,0 +1,93 @@
+#![allow(dead_code)]
+use core::mem::MaybeUninit;
+use core::ptr;
+use core::ptr::copy_nonoverlapping;
+use core::slice;
+use std::mem::{align_of, size_of};
+pub struct Arena {
+    data: Box<[MaybeUninit<u8>]>,
+    capacity: usize,
+    bump: usize,
+}
+
+pub enum Size {
+    Kibs(usize),
+    Megs(usize),
+    Gigs(usize),
+}
+
+impl Size {
+    fn as_bytes(&self) -> usize {
+        match self {
+            Size::Kibs(v) => 1024 * v,
+            Size::Megs(v) => 1024 * 1024 * v,
+            Size::Gigs(v) => 1024 * 1024 * 1024 * v,
+        }
+    }
+}
+
+impl Arena {
+    pub fn new(capacity: Size) -> Self {
+        Self {
+            data: Box::<[u8]>::new_uninit_slice(capacity.as_bytes()),
+            capacity: capacity.as_bytes(),
+            bump: 0,
+        }
+    }
+
+    pub fn alloc_str<'b>(&mut self, input: &str) -> &'b str {
+        unsafe {
+            let bytes = input.as_bytes();
+            let bytes_ptr = bytes.as_ptr();
+            let data_ptr = self.data.as_mut_ptr().add(self.bump) as *mut u8;
+            copy_nonoverlapping(bytes_ptr, data_ptr, bytes.len());
+            self.bump += bytes.len();
+            str::from_utf8_unchecked(slice::from_raw_parts(data_ptr, bytes.len()))
+        }
+    }
+
+    fn alloc<'b, T>(&mut self, input: T) -> &'b T {
+        unsafe {
+            let ptr = self.data.as_mut_ptr().add(self.bump + self.padding::<T>()) as *mut T;
+            ptr::write(ptr, input);
+            self.bump += size_of::<T>() + self.padding::<T>();
+            &*(ptr as *const T)
+        }
+    }
+
+    #[inline]
+    fn padding<T>(&mut self) -> usize {
+        (align_of::<T>() - (self.bump % align_of::<T>())) % align_of::<T>()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_alloc() {
+        #[derive(Debug)]
+        struct RandomStruct(usize, u8);
+        #[derive(Debug)]
+        struct BigFat(usize, u8, usize, u16, u32, char, char, char, char);
+        #[derive(Debug)]
+        struct FakeBoxed<'a>(Option<&'a Self>);
+        let mut arena = Arena::new(Size::Kibs(2));
+        let alloced_str = arena.alloc_str("hello world!");
+        let alloced_struct = arena.alloc(RandomStruct(100, 10));
+        let another = arena.alloc_str("some stuff");
+        let another2 = arena.alloc(31321);
+        let bigfat = arena.alloc(BigFat(32, 23, 254, 64, 32, 'a', 'b', 'c', 'd'));
+        let smol = arena.alloc(2u8);
+        let list = arena.alloc([32, 32, 321, 5]);
+        let fake = arena.alloc(FakeBoxed(Some(&FakeBoxed(Some(&FakeBoxed(None))))));
+        println!("{:#?}", alloced_str);
+        println!("{:#?}", alloced_struct);
+        println!("{:#?}", another);
+        println!("{:#?}", another2);
+        println!("{:#?}", bigfat);
+        println!("{:#?}", smol);
+        println!("{:#?}", list);
+        println!("{:#?}", fake);
+    }
+}
