@@ -73,12 +73,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bumpalo"
-version = "3.19.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46c5e41b57b8bba42a04676d81cb89e9ee8e859a1a66f80a5a72e1cb76b34d43"
-
-[[package]]
 name = "clap"
 version = "4.5.53"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -158,22 +152,12 @@ name = "pipec-ast"
 version = "0.1.0"
 dependencies = [
  "bincode",
- "bumpalo",
- "pipec-globals",
  "putbackpeekmore",
 ]
 
 [[package]]
 name = "pipec-errors"
 version = "0.1.0"
-
-[[package]]
-name = "pipec-globals"
-version = "0.1.0"
-dependencies = [
- "clap",
- "pipec-args",
-]
 
 [[package]]
 name = "pipec-mir"
