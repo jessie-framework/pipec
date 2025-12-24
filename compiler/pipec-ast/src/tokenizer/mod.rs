@@ -1,9 +1,7 @@
-use pipec_cache::{Decode, Encode};
 use putbackpeekmore::PutBackPeekMore;
 use std::str::Chars;
 
 use crate::tokenizer::tokentree::TokenTree;
-mod reader;
 pub mod tokentree;
 
 pub struct Tokenizer<'chars> {
@@ -419,7 +417,7 @@ impl<'chars> Tokenizer<'chars> {
     }
 }
 
-#[derive(PartialEq, Debug, Decode, Encode, Hash)]
+#[derive(PartialEq, Debug)]
 pub enum Token {
     /// ==
     EqualTo,
@@ -529,7 +527,7 @@ pub enum Token {
     EOF,
 }
 
-#[derive(PartialEq, Debug, Decode, Encode, Hash, Clone, Copy, Eq)]
+#[derive(PartialEq, Debug, Clone, Copy, Eq, Hash)]
 pub enum DigitType {
     Float,
     Int,

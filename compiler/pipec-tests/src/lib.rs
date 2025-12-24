@@ -13,12 +13,7 @@ macro_rules! test_file_generation {
         let tokenizer = Tokenizer::new(include_str!($filename));
         let mut guard = RecursiveGuard::default();
         let mut tree = tokenizer.tree();
-        let hirtree = ASTGenerator::new(
-            &mut tree,
-            path.clone(),
-            &mut guard,
-            std::sync::Arc::new(Some(path)),
-        );
+        let hirtree = ASTGenerator::new(&mut tree, path.clone(), &mut guard);
         hirtree.tree();
     };
 }

@@ -1,14 +1,10 @@
 use crate::Token;
 
-use pipec_cache::{Cached, Decode, Encode};
-
-#[derive(Default, Hash, Encode, Decode, Debug)]
+#[derive(Default, Debug)]
 pub struct TokenTree {
     stream: Vec<Token>,
     pos: usize,
 }
-
-impl Cached for TokenTree {}
 
 impl TokenTree {
     pub fn new(stream: Vec<Token>) -> Self {
