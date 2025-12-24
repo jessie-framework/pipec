@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+use putbackpeekmore::PutBackPeekMore;
 use std::str::Chars;
 
 /// A span in a source later used to be read from using the function parse().
@@ -18,14 +19,14 @@ impl Span {
 /// Wraps a Chars<'a> from the Rust standard library and introduces functionality to look at the index of the iterator in memory.
 #[derive(Clone, Debug)]
 pub struct SpannedIterator<'a> {
-    chars: Chars<'a>,
+    chars: PutBackPeekMore<Chars<'a>, 4>,
     index: usize,
 }
 
 impl<'a> SpannedIterator<'a> {
     pub fn new(input: &'a str) -> Self {
         Self {
-            chars: input.chars(),
+            chars: PutBackPeekMore::new(input.chars()),
             index: 0,
         }
     }
@@ -36,6 +37,14 @@ impl<'a> SpannedIterator<'a> {
             self.index += v.len_utf8();
         }
         next
+    }
+
+    pub fn peek(&mut self) -> &Option<char> {
+        self.chars.peek()
+    }
+
+    pub fn peek_value(&mut self, input: usize) -> &[Option<char>] {
+        self.chars.peek_value(input)
     }
 
     fn index(&self) -> usize {
