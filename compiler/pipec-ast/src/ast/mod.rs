@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use self::hirtree::HIRTree;
+use self::asttree::ASTTree;
 use crate::ASTFileReader;
 use crate::RecursiveGuard;
 use crate::tokenizer::DigitType;
@@ -9,26 +9,26 @@ use crate::tokenizer::Token;
 use crate::tokenizer::tokentree::TokenTree;
 use pipec_cache::{Cached, Decode, Encode};
 
-pub mod hirtree;
+pub mod asttree;
 
-pub struct HIRGenerator<'this> {
+pub struct ASTGenerator<'this> {
     tokens: &'this mut TokenTree,
     guard: &'this mut RecursiveGuard,
     path: PathBuf,
     cache_dir: Arc<Option<PathBuf>>,
 }
 
-impl<'this> HIRGenerator<'this> {
-    pub fn tree(mut self) -> HIRTree {
+impl<'this> ASTGenerator<'this> {
+    pub fn tree(mut self) -> ASTTree {
         let mut out = Vec::with_capacity(30);
         loop {
             let next = self.parse_value();
-            if next == HIRNode::EOF {
+            if next == ASTNode::EOF {
                 break;
             }
             out.push(next);
         }
-        HIRTree::new(out)
+        ASTTree::new(out)
     }
 
     pub fn new(
@@ -56,7 +56,7 @@ impl<'this> HIRGenerator<'this> {
         self.tokens.peek()
     }
 
-    pub fn parse_value(&mut self) -> HIRNode {
+    pub fn parse_value(&mut self) -> ASTNode {
         self.consume_whitespace();
         match self.peek_stream() {
             Some(v) => match v {
@@ -69,12 +69,12 @@ impl<'this> HIRGenerator<'this> {
                     todo!();
                 }
             },
-            None => HIRNode::EOF,
+            None => ASTNode::EOF,
         }
     }
 
     #[inline]
-    pub(crate) fn consume_function_keyword(&mut self) -> HIRNode {
+    pub(crate) fn consume_function_keyword(&mut self) -> ASTNode {
         self.advance_stream();
         self.consume_whitespace();
         let name = self.must_ident();
@@ -90,7 +90,7 @@ impl<'this> HIRGenerator<'this> {
         self.consume_whitespace();
         let block = self.consume_function_block();
 
-        HIRNode::FunctionDeclaration {
+        ASTNode::FunctionDeclaration {
             name,
             params,
             block,
@@ -99,7 +99,7 @@ impl<'this> HIRGenerator<'this> {
     }
 
     #[inline]
-    pub(crate) fn consume_viewport_keyword(&mut self) -> HIRNode {
+    pub(crate) fn consume_viewport_keyword(&mut self) -> ASTNode {
         self.advance_stream();
         self.consume_whitespace();
         let name = self.must_ident();
@@ -107,7 +107,7 @@ impl<'this> HIRGenerator<'this> {
         let params = self.consume_function_parameters();
         self.consume_whitespace();
         let block = self.consume_function_block();
-        HIRNode::ViewportDeclaration {
+        ASTNode::ViewportDeclaration {
             name,
             params,
             block,
@@ -167,7 +167,7 @@ impl<'this> HIRGenerator<'this> {
     }
 
     #[inline]
-    pub(crate) fn consume_module_keyword(&mut self) -> HIRNode {
+    pub(crate) fn consume_module_keyword(&mut self) -> ASTNode {
         self.advance_stream();
         self.consume_whitespace();
         let mod_path = match self.advance_stream() {
@@ -189,7 +189,7 @@ impl<'this> HIRGenerator<'this> {
     }
 
     #[inline]
-    pub(crate) fn consume_mod_block(&mut self, mod_path: String) -> HIRNode {
+    pub(crate) fn consume_mod_block(&mut self, mod_path: String) -> ASTNode {
         self.advance_stream();
         let mut nodes = Vec::with_capacity(10);
         loop {
@@ -200,14 +200,14 @@ impl<'this> HIRGenerator<'this> {
             }
             nodes.push(self.parse_value());
         }
-        HIRNode::ModStatement {
+        ASTNode::ModStatement {
             name: mod_path,
-            tree: HIRTree::from_vec(nodes),
+            tree: ASTTree::from_vec(nodes),
         }
     }
 
     #[inline]
-    pub(crate) fn consume_node_from_fs(&mut self, mod_path: String) -> HIRNode {
+    pub(crate) fn consume_node_from_fs(&mut self, mod_path: String) -> ASTNode {
         self.advance_stream();
         let path1 = {
             let mut cloned = self.path.clone();
@@ -239,7 +239,7 @@ impl<'this> HIRGenerator<'this> {
                 });
             let hir = reader.generate_hir(self.guard, self.cache_dir.clone());
             reader.upload_to_cache(link, self.cache_dir.clone());
-            return HIRNode::ModStatement {
+            return ASTNode::ModStatement {
                 name: mod_path,
                 tree: hir,
             };
@@ -253,7 +253,7 @@ impl<'this> HIRGenerator<'this> {
                 });
             let hir = reader.generate_hir(self.guard, self.cache_dir.clone());
             reader.upload_to_cache(link, self.cache_dir.clone());
-            return HIRNode::ModStatement {
+            return ASTNode::ModStatement {
                 name: mod_path,
                 tree: hir,
             };
@@ -264,11 +264,11 @@ impl<'this> HIRGenerator<'this> {
     }
 
     #[inline]
-    pub(crate) fn consume_component_keyword(&mut self) -> HIRNode {
+    pub(crate) fn consume_component_keyword(&mut self) -> ASTNode {
         self.advance_stream();
         self.consume_whitespace();
         if let Some(Token::Ident(v)) = self.advance_stream() {
-            return HIRNode::ComponentDeclaration {
+            return ASTNode::ComponentDeclaration {
                 name: v.to_string(),
                 block: self.consume_component_declaration_block(),
             };
@@ -835,13 +835,13 @@ impl<'this> HIRGenerator<'this> {
     }
 
     #[inline]
-    pub(crate) fn consume_using_keyword(&mut self) -> HIRNode {
+    pub(crate) fn consume_using_keyword(&mut self) -> ASTNode {
         self.advance_stream();
         self.consume_whitespace();
 
         let using = self.consume_a_path();
         self.consume_a_semicolon();
-        HIRNode::UsingStatement { using }
+        ASTNode::UsingStatement { using }
     }
 
     #[inline]
@@ -969,7 +969,7 @@ pub enum FunctionNodeParams {
 }
 
 #[derive(Debug, PartialEq, Decode, Encode, Hash, Clone)]
-pub enum HIRNode {
+pub enum ASTNode {
     MainFunction {
         block: Block,
     },
@@ -995,12 +995,12 @@ pub enum HIRNode {
     },
     ModStatement {
         name: String,
-        tree: HIRTree,
+        tree: ASTTree,
     },
     EOF,
 }
 
-impl Cached for HIRNode {}
+impl Cached for ASTNode {}
 
 #[derive(Debug, PartialEq, Decode, Encode, Hash, Clone)]
 pub struct ComponentDeclarationBlock {

@@ -5,7 +5,7 @@ mod ast;
 macro_rules! test_file_generation {
     ($filename:  literal) => {
         use pipec_ast::tokenizer::Tokenizer;
-        use pipec_ast::{RecursiveGuard, hir::HIRGenerator};
+        use pipec_ast::{RecursiveGuard, ast::ASTGenerator};
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("src")
             .join("tests")
@@ -13,7 +13,7 @@ macro_rules! test_file_generation {
         let tokenizer = Tokenizer::new(include_str!($filename));
         let mut guard = RecursiveGuard::default();
         let mut tree = tokenizer.tree();
-        let hirtree = HIRGenerator::new(
+        let hirtree = ASTGenerator::new(
             &mut tree,
             path.clone(),
             &mut guard,

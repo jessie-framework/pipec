@@ -1,7 +1,7 @@
-pub mod hir;
+pub mod ast;
 pub mod tokenizer;
 
-use crate::hir::{HIRGenerator, hirtree::HIRTree};
+use crate::ast::{ASTGenerator, asttree::ASTTree};
 use crate::tokenizer::{Token, Tokenizer, tokentree::TokenTree};
 use pipec_cache::{Cached, Decode, Encode, Link};
 use std::sync::Arc;
@@ -66,8 +66,8 @@ impl ASTFileReader {
         &mut self,
         guard: &mut RecursiveGuard,
         cache_dir: Arc<Option<PathBuf>>,
-    ) -> HIRTree {
-        let hirgenerator = HIRGenerator::new(
+    ) -> ASTTree {
+        let hirgenerator = ASTGenerator::new(
             &mut self.file.toks,
             self.file.file.clone(),
             guard,

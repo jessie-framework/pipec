@@ -1,9 +1,9 @@
 #![allow(dead_code)]
 
-use pipec_ast::hir::{FunctionDeclarationParameters, HIRNode, Path, PathNode, hirtree::HIRTree};
+use pipec_ast::ast::{ASTNode, FunctionDeclarationParameters, Path, PathNode, asttree::ASTTree};
 use std::collections::HashMap;
 pub struct SemanticAnalyzer {
-    stream: HIRTree,
+    stream: ASTTree,
     imports: ImportTree,
 }
 
@@ -22,25 +22,25 @@ pub struct GlobalSymbolTree {
 }
 
 impl GlobalSymbolTree {
-    pub fn gen_symbols(&mut self, tree: &mut HIRTree) {
+    pub fn gen_symbols(&mut self, tree: &mut ASTTree) {
         tree.reset();
         let path = Path::default();
         loop {
             let next = tree.next_node();
             match next {
                 Some(v) => match v {
-                    HIRNode::FunctionDeclaration {
+                    ASTNode::FunctionDeclaration {
                         name,
                         params,
                         block: _,
                         out_type,
                     } => self.add_function_declaration(name, params, out_type, path.clone()),
-                    HIRNode::ViewportDeclaration {
+                    ASTNode::ViewportDeclaration {
                         name,
                         params,
                         block: _,
                     } => self.add_viewport_declaration(name, params, path.clone()),
-                    HIRNode::ModStatement { name, tree } => {
+                    ASTNode::ModStatement { name, tree } => {
                         self.add_mod_statement(name, tree, path.clone())
                     }
                     _ => {}
@@ -51,7 +51,7 @@ impl GlobalSymbolTree {
     }
 
     #[inline]
-    pub(crate) fn add_mod_statement(&mut self, name: &String, tree: &HIRTree, mut path: Path) {
+    pub(crate) fn add_mod_statement(&mut self, name: &String, tree: &ASTTree, mut path: Path) {
         let stream = tree.stream();
 
         path.add_child(PathNode {
@@ -61,18 +61,18 @@ impl GlobalSymbolTree {
         let path = path.clone();
         for i in stream {
             match i {
-                HIRNode::FunctionDeclaration {
+                ASTNode::FunctionDeclaration {
                     name,
                     params,
                     block: _,
                     out_type,
                 } => self.add_function_declaration(name, params, out_type, path.clone()),
-                HIRNode::ViewportDeclaration {
+                ASTNode::ViewportDeclaration {
                     name,
                     params,
                     block: _,
                 } => self.add_viewport_declaration(name, params, path.clone()),
-                HIRNode::ModStatement { name, tree } => {
+                ASTNode::ModStatement { name, tree } => {
                     self.add_mod_statement(name, tree, path.clone())
                 }
                 _ => {}
@@ -185,7 +185,7 @@ impl Type {
 }
 
 impl SemanticAnalyzer {
-    pub fn new(tree: HIRTree) -> Self {
+    pub fn new(tree: ASTTree) -> Self {
         Self {
             stream: tree,
             imports: ImportTree::default(),

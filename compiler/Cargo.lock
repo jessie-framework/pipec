@@ -217,6 +217,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "pipec-span"
+version = "0.1.0"
+
+[[package]]
 name = "pipec-tests"
 version = "0.1.0"
 dependencies = [
