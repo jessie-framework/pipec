@@ -5,4 +5,4 @@ edition = "2024"
 
 [dependencies]
 bincode = { version = "2.0.1", features = ["derive"] }
-putbackpeekmore = "0.1.1"
+pipec-span = { version = "0.1.0", path = "../pipec-span" }
