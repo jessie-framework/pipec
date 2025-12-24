@@ -1,5 +1,4 @@
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use self::asttree::ASTTree;
 use crate::ASTFileReader;
@@ -7,7 +6,6 @@ use crate::RecursiveGuard;
 use crate::tokenizer::DigitType;
 use crate::tokenizer::Token;
 use crate::tokenizer::tokentree::TokenTree;
-use pipec_cache::{Cached, Decode, Encode};
 
 pub mod asttree;
 
@@ -15,7 +13,6 @@ pub struct ASTGenerator<'this> {
     tokens: &'this mut TokenTree,
     guard: &'this mut RecursiveGuard,
     path: PathBuf,
-    cache_dir: Arc<Option<PathBuf>>,
 }
 
 impl<'this> ASTGenerator<'this> {
@@ -35,14 +32,12 @@ impl<'this> ASTGenerator<'this> {
         tokens: &'this mut TokenTree,
         path: PathBuf,
         guard: &'this mut RecursiveGuard,
-        cache_dir: Arc<Option<PathBuf>>,
     ) -> Self {
         let path = path.parent().unwrap().to_path_buf();
         Self {
             tokens,
             path,
             guard,
-            cache_dir,
         }
     }
 
@@ -232,13 +227,11 @@ impl<'this> ASTGenerator<'this> {
             unreachable!();
         }
         if path1.exists() {
-            let (mut reader, link) = ASTFileReader::new(&path1, self.cache_dir.clone())
-                .unwrap_or_else(|_| {
-                    // TODO : compiler error
-                    unreachable!();
-                });
-            let hir = reader.generate_hir(self.guard, self.cache_dir.clone());
-            reader.upload_to_cache(link, self.cache_dir.clone());
+            let mut reader = ASTFileReader::new(&path1).unwrap_or_else(|_| {
+                // TODO : compiler error
+                unreachable!();
+            });
+            let hir = reader.generate_hir(self.guard);
             return ASTNode::ModStatement {
                 name: mod_path,
                 tree: hir,
@@ -246,13 +239,11 @@ impl<'this> ASTGenerator<'this> {
         }
 
         if path2.exists() {
-            let (mut reader, link) = ASTFileReader::new(&path2, self.cache_dir.clone())
-                .unwrap_or_else(|_| {
-                    // TODO : compiler error
-                    unreachable!();
-                });
-            let hir = reader.generate_hir(self.guard, self.cache_dir.clone());
-            reader.upload_to_cache(link, self.cache_dir.clone());
+            let mut reader = ASTFileReader::new(&path2).unwrap_or_else(|_| {
+                // TODO : compiler error
+                unreachable!();
+            });
+            let hir = reader.generate_hir(self.guard);
             return ASTNode::ModStatement {
                 name: mod_path,
                 tree: hir,
@@ -929,10 +920,8 @@ impl<'this> ASTGenerator<'this> {
         }
     }
 }
-#[derive(Clone, Debug, PartialEq, Default, Decode, Encode, Hash, Eq)]
+#[derive(Clone, Debug, PartialEq, Default, Eq, Hash)]
 pub struct Path(pub Vec<PathNode>);
-
-impl Cached for Path {}
 
 impl Path {
     pub fn inner(&self) -> &[PathNode] {
@@ -956,19 +945,19 @@ impl Path {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Decode, Encode, Hash, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PathNode {
     pub name: String,
     pub param: Option<FunctionNodeParams>,
 }
 
-#[derive(Clone, Debug, PartialEq, Decode, Encode, Hash, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum FunctionNodeParams {
     Tuple(Vec<Expression>),
     Angles(Vec<Path>),
 }
 
-#[derive(Debug, PartialEq, Decode, Encode, Hash, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum ASTNode {
     MainFunction {
         block: Block,
@@ -1000,16 +989,12 @@ pub enum ASTNode {
     EOF,
 }
 
-impl Cached for ASTNode {}
-
-#[derive(Debug, PartialEq, Decode, Encode, Hash, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ComponentDeclarationBlock {
     contents: Vec<ComponentDeclarationBlockStatements>,
 }
 
-impl Cached for ComponentDeclarationBlock {}
-
-#[derive(Debug, PartialEq, Decode, Encode, Hash, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum ComponentDeclarationBlockStatements {
     FinalVariableDeclaration {
         variablename: String,
@@ -1028,31 +1013,23 @@ pub enum ComponentDeclarationBlockStatements {
     },
 }
 
-impl Cached for ComponentDeclarationBlockStatements {}
-
-#[derive(Debug, PartialEq, Decode, Encode, Hash, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct RenderBlock {
     vertices_block: VerticesBlock,
     fragments_block: FragmentsBlock,
 }
 
-impl Cached for RenderBlock {}
-
-#[derive(Debug, PartialEq, Decode, Encode, Hash, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct VerticesBlock {
     block: Block,
 }
 
-impl Cached for VerticesBlock {}
-
-#[derive(Debug, PartialEq, Decode, Encode, Hash, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct FragmentsBlock {
     block: Block,
 }
 
-impl Cached for FragmentsBlock {}
-
-#[derive(Debug, PartialEq, Decode, Encode, Hash, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum FunctionBlockStatements {
     VariableDeclaration {
         variablename: String,
@@ -1070,18 +1047,14 @@ pub enum FunctionBlockStatements {
     },
 }
 
-impl Cached for FunctionBlockStatements {}
-
-#[derive(Debug, PartialEq, Decode, Encode, Hash, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Exported {
     ColorBuiltin,
     PositionBuiltin,
     Custom(String),
 }
 
-impl Cached for Exported {}
-
-#[derive(Debug, PartialEq, Clone, Decode, Encode, Hash, Eq)]
+#[derive(Debug, PartialEq, Clone, Eq, Hash)]
 pub enum Expression {
     NumberExpression {
         value: String,
@@ -1112,9 +1085,7 @@ pub enum Expression {
     },
 }
 
-impl Cached for Expression {}
-
-#[derive(Debug, PartialEq, Clone, Decode, Encode, Hash, Eq)]
+#[derive(Debug, PartialEq, Clone, Eq, Hash)]
 pub enum UnaryOpType {
     Add,
     Subtract,
@@ -1123,20 +1094,15 @@ pub enum UnaryOpType {
     Mod,
 }
 
-impl Cached for UnaryOpType {}
-
-#[derive(Debug, Decode, Encode, Hash)]
+#[derive(Debug)]
 pub enum VariableType {
     Const,
     Final,
 }
 
-impl Cached for VariableType {}
-
-#[derive(Debug, PartialEq, Decode, Encode, Hash, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Block(Vec<FunctionBlockStatements>);
 
-impl Cached for Block {}
 impl Block {
     pub fn push(&mut self, input: FunctionBlockStatements) {
         self.0.push(input);
@@ -1149,9 +1115,8 @@ impl Default for Block {
     }
 }
 
-#[derive(Debug, Hash, Decode, Encode, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct FunctionDeclarationParameters(Vec<FunctionDeclarationParameter>);
-impl Cached for FunctionDeclarationParameters {}
 
 impl FunctionDeclarationParameters {
     pub(crate) fn new() -> Self {
@@ -1165,9 +1130,8 @@ impl FunctionDeclarationParameters {
     }
 }
 
-#[derive(Debug, Hash, Decode, Encode, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct FunctionDeclarationParameter {
     name: String,
     pub arg_type: Path,
 }
-impl Cached for FunctionDeclarationParameter {}

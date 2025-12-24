@@ -1,12 +1,10 @@
 use super::ASTNode;
-use pipec_cache::{Cached, Decode, Encode};
 
-#[derive(PartialEq, Decode, Encode, Hash, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct ASTTree {
     stream: Vec<ASTNode>,
     pos: usize,
 }
-impl Cached for ASTTree {}
 
 impl ASTTree {
     pub fn stream(&self) -> &[ASTNode] {
