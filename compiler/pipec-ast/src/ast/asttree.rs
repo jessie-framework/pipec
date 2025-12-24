@@ -1,35 +1,35 @@
-use super::HIRNode;
+use super::ASTNode;
 use pipec_cache::{Cached, Decode, Encode};
 
 #[derive(PartialEq, Decode, Encode, Hash, Debug, Clone)]
-pub struct HIRTree {
-    stream: Vec<HIRNode>,
+pub struct ASTTree {
+    stream: Vec<ASTNode>,
     pos: usize,
 }
-impl Cached for HIRTree {}
+impl Cached for ASTTree {}
 
-impl HIRTree {
-    pub fn stream(&self) -> &[HIRNode] {
+impl ASTTree {
+    pub fn stream(&self) -> &[ASTNode] {
         &self.stream
     }
 
-    pub fn new(input: Vec<HIRNode>) -> Self {
+    pub fn new(input: Vec<ASTNode>) -> Self {
         Self {
             stream: input,
             pos: 0,
         }
     }
-    pub fn current_node(&mut self) -> Option<&HIRNode> {
+    pub fn current_node(&mut self) -> Option<&ASTNode> {
         self.stream.get(self.pos)
     }
-    pub fn next_node(&mut self) -> Option<&HIRNode> {
+    pub fn next_node(&mut self) -> Option<&ASTNode> {
         self.pos += 1;
         self.stream.get(self.pos - 1)
     }
-    pub fn peek(&mut self) -> Option<&HIRNode> {
+    pub fn peek(&mut self) -> Option<&ASTNode> {
         self.stream.get(self.pos)
     }
-    pub fn from_vec(vec: Vec<HIRNode>) -> Self {
+    pub fn from_vec(vec: Vec<ASTNode>) -> Self {
         Self {
             stream: vec,
             pos: 0,

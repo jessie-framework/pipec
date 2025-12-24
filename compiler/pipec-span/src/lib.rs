@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use std::str::Chars;
 
 /// A span in a source later used to be read from using the function parse().
