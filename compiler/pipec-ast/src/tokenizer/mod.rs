@@ -1,18 +1,16 @@
-use putbackpeekmore::PutBackPeekMore;
-use std::str::Chars;
-
 use crate::tokenizer::tokentree::TokenTree;
+use pipec_span::{Span, SpannedIterator};
 pub mod tokentree;
 
 pub struct Tokenizer<'chars> {
-    stream: PutBackPeekMore<Chars<'chars>, 4>,
+    stream: SpannedIterator<'chars>,
     position: usize,
 }
 
 impl<'chars> Tokenizer<'chars> {
     pub fn new(input: &'chars str) -> Self {
         Self {
-            stream: PutBackPeekMore::new(input.chars()),
+            stream: SpannedIterator::new(input),
             position: 0,
         }
     }
