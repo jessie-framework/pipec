@@ -14,6 +14,7 @@ pub struct Arena {
 
 /// An "owned pointer" the arena returns after you do an allocation with it.
 /// Lifetimes are a mess to deal with so returning a struct like this instead of say &'a mut T is easier
+#[derive(Debug, Clone, Copy)]
 pub struct ASpan<T> {
     _marker: std::marker::PhantomData<T>,
     pub(crate) val: usize,
@@ -29,6 +30,7 @@ impl<T> ASpan<T> {
 }
 
 /// Size for the Arena allocator.
+#[derive(Clone, Copy)]
 pub enum Size {
     Kibs(usize),
     Megs(usize),
