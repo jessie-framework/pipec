@@ -10,10 +10,11 @@ macro_rules! test_file_generation {
             .join("src")
             .join("tests")
             .to_path_buf();
-        let tokenizer = Tokenizer::new(include_str!($filename));
-        let mut guard = RecursiveGuard::default();
+        let mut tokenizer = Tokenizer::new(include_str!($filename));
         let mut tree = tokenizer.tree();
-        let hirtree = ASTGenerator::new(&mut tree, path.clone(), &mut guard);
+        let filecontents = std::fs::read_to_string(&path).unwrap();
+        let mut guard = RecursiveGuard::new();
+        let hirtree = ASTGenerator::new(&filecontents, &mut tree, path, &mut guard);
         hirtree.tree();
     };
 }
