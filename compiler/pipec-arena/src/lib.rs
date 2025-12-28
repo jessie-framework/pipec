@@ -10,6 +10,20 @@ pub struct Arena {
     bump: usize,
 }
 
+pub struct ASpan<T> {
+    _marker: std::marker::PhantomData<T>,
+    pub(crate) val: usize,
+}
+
+impl<T> ASpan<T> {
+    pub(crate) fn new(input: usize) -> Self {
+        Self {
+            val: input,
+            _marker: std::marker::PhantomData,
+        }
+    }
+}
+
 pub enum Size {
     Kibs(usize),
     Megs(usize),
@@ -46,12 +60,25 @@ impl Arena {
         }
     }
 
-    fn alloc<'b, T>(&mut self, input: T) -> &'b T {
+    pub fn take<'b, T>(&mut self, input: ASpan<T>) -> &'b mut T {
         unsafe {
-            let ptr = self.data.as_mut_ptr().add(self.bump + self.padding::<T>()) as *mut T;
+            let ptr = self.data.as_mut_ptr().add(input.val) as *mut T;
+            &mut *ptr
+        }
+    }
+
+    #[inline]
+    pub fn alloc<T>(&mut self, input: T) -> ASpan<T> {
+        unsafe {
+            let ptr = self
+                .data
+                .as_mut_ptr()
+                .add(self.bump)
+                .add(self.padding::<T>()) as *mut T;
             ptr::write(ptr, input);
+            let out = ASpan::new(self.bump + self.padding::<T>());
             self.bump += size_of::<T>() + self.padding::<T>();
-            &*(ptr as *const T)
+            out
         }
     }
 
@@ -73,21 +100,17 @@ mod tests {
         #[derive(Debug)]
         struct FakeBoxed<'a>(Option<&'a Self>);
         let mut arena = Arena::new(Size::Kibs(2));
-        let alloced_str = arena.alloc_str("hello world!");
         let alloced_struct = arena.alloc(RandomStruct(100, 10));
-        let another = arena.alloc_str("some stuff");
         let another2 = arena.alloc(31321);
         let bigfat = arena.alloc(BigFat(32, 23, 254, 64, 32, 'a', 'b', 'c', 'd'));
         let smol = arena.alloc(2u8);
         let list = arena.alloc([32, 32, 321, 5]);
         let fake = arena.alloc(FakeBoxed(Some(&FakeBoxed(Some(&FakeBoxed(None))))));
-        println!("{:#?}", alloced_str);
-        println!("{:#?}", alloced_struct);
-        println!("{:#?}", another);
-        println!("{:#?}", another2);
-        println!("{:#?}", bigfat);
-        println!("{:#?}", smol);
-        println!("{:#?}", list);
-        println!("{:#?}", fake);
+        println!("{:#?}", arena.take(alloced_struct));
+        println!("{:#?}", arena.take(another2));
+        println!("{:#?}", arena.take(bigfat));
+        println!("{:#?}", arena.take(smol));
+        println!("{:#?}", arena.take(list));
+        println!("{:#?}", arena.take(fake));
     }
 }
