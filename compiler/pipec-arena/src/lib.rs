@@ -3,7 +3,10 @@ use core::mem::MaybeUninit;
 use core::ptr;
 use core::ptr::copy_nonoverlapping;
 use core::slice;
-use std::mem::{align_of, size_of};
+use std::{
+    marker::PhantomData,
+    mem::{align_of, size_of},
+};
 
 /// An arena allocator made to be used by the compiler.
 pub struct Arena {
@@ -14,10 +17,19 @@ pub struct Arena {
 
 /// An "owned pointer" the arena returns after you do an allocation with it.
 /// Lifetimes are a mess to deal with so returning a struct like this instead of say &'a mut T is easier
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Copy)]
 pub struct ASpan<T> {
-    _marker: std::marker::PhantomData<T>,
+    _marker: PhantomData<T>,
     pub(crate) val: usize,
+}
+
+impl<T> Clone for ASpan<T> {
+    fn clone(&self) -> Self {
+        Self {
+            _marker: PhantomData,
+            val: self.val,
+        }
+    }
 }
 
 impl<T> ASpan<T> {
