@@ -4,12 +4,16 @@ use core::ptr;
 use core::ptr::copy_nonoverlapping;
 use core::slice;
 use std::mem::{align_of, size_of};
+
+/// An arena allocator made to be used by the compiler.
 pub struct Arena {
     data: Box<[MaybeUninit<u8>]>,
     capacity: usize,
     bump: usize,
 }
 
+/// An "owned pointer" the arena returns after you do an allocation with it.
+/// Lifetimes are a mess to deal with so returning a struct like this instead of say &'a mut T is easier
 pub struct ASpan<T> {
     _marker: std::marker::PhantomData<T>,
     pub(crate) val: usize,
@@ -24,6 +28,7 @@ impl<T> ASpan<T> {
     }
 }
 
+/// Size for the Arena allocator.
 pub enum Size {
     Kibs(usize),
     Megs(usize),
@@ -41,6 +46,7 @@ impl Size {
 }
 
 impl Arena {
+    /// Returns a new arena.
     pub fn new(capacity: Size) -> Self {
         Self {
             data: Box::<[u8]>::new_uninit_slice(capacity.as_bytes()),
@@ -49,6 +55,7 @@ impl Arena {
         }
     }
 
+    /// Allocates a string slice in the arena.
     pub fn alloc_str<'b>(&mut self, input: &str) -> &'b str {
         unsafe {
             let bytes = input.as_bytes();
@@ -60,6 +67,7 @@ impl Arena {
         }
     }
 
+    /// Takes an ASpan<T> and turns it into a &mut T.
     pub fn take<'b, T>(&mut self, input: ASpan<T>) -> &'b mut T {
         unsafe {
             let ptr = self.data.as_mut_ptr().add(input.val) as *mut T;
@@ -67,6 +75,7 @@ impl Arena {
         }
     }
 
+    /// Allocates T in the arena and returns an ASpan<T>
     #[inline]
     pub fn alloc<T>(&mut self, input: T) -> ASpan<T> {
         unsafe {
