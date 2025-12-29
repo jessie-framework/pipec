@@ -16,6 +16,7 @@ impl FileLoader {
         let mut src = String::with_capacity(10000);
         let mut file = File::open(input)?;
         file.read_to_string(&mut src)?;
+        self.store.push(src);
         Ok(FileId(id))
     }
 
