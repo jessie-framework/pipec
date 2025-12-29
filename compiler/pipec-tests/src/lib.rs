@@ -5,28 +5,36 @@ mod ast;
 macro_rules! test_file_generation {
     ($filename:  literal) => {
         use pipec_arena::{Arena, Size};
-        use pipec_ast::tokenizer::Tokenizer;
-        use pipec_ast::{RecursiveGuard, ast::ASTGenerator, ast::ASTNode};
+        use pipec_ast::{RecursiveGuard, ast::ASTGenerator, tokenizer::Tokenizer};
 
-        let path = std::path::Path::new(concat!(
-            ".",
-            concat!(concat!(env!("CARGO_MANIFEST_DIR"), "src/tests/")),
-            $filename
-        ))
-        .to_path_buf(); // FIXME : i have zero idea why this makes the tests work but if you do it otherwise it stack overflows even though the binaries have no issue??
-        println!("{:#?}", &path);
+        let file_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join(file!())
+            .parent()
+            .unwrap()
+            .join($filename);
+        let c = file_dir.clone();
 
-        let filecontents = include_str!($filename);
-        let tokenizer = Tokenizer::new(filecontents);
-        let mut tree = tokenizer.tree();
-        let mut arena = Arena::new(Size::Megs(1));
+        let file_contents = include_str!($filename);
+        let mut tokentree = Tokenizer::new(&file_contents).tree();
+        let mut arena = Arena::new(Size::Megs(10));
         let mut guard = RecursiveGuard::new();
-        let mut hirtree = ASTGenerator::new(filecontents, &mut tree, &mut arena, path, &mut guard);
+
+        let mut ast_generator = ASTGenerator::new(
+            file_contents,
+            &mut tokentree,
+            &mut arena,
+            file_dir,
+            &mut guard,
+        );
+
         loop {
-            let next = hirtree.parse_value();
-            if matches!(next, ASTNode::EOF) {
+            let next = ast_generator.parse_value();
+            if matches!(next, pipec_ast::ast::ASTNode::EOF) {
                 break;
             }
         }
+        println!("{c:#?}");
     };
 }
