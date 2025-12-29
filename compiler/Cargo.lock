@@ -141,6 +141,10 @@ name = "pipec-arena"
 version = "0.1.0"
 
 [[package]]
+name = "pipec-arena-structures"
+version = "0.1.0"
+
+[[package]]
 name = "pipec-args"
 version = "0.1.0"
 dependencies = [
@@ -152,6 +156,9 @@ name = "pipec-ast"
 version = "0.1.0"
 dependencies = [
  "bincode",
+ "pipec-arena",
+ "pipec-arena-structures",
+ "pipec-span",
  "putbackpeekmore",
 ]
 
@@ -171,6 +178,7 @@ name = "pipec-prelude"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "pipec-arena",
  "pipec-args",
  "pipec-ast",
  "pipec-semantic-analysis",
@@ -186,11 +194,15 @@ dependencies = [
 [[package]]
 name = "pipec-span"
 version = "0.1.0"
+dependencies = [
+ "putbackpeekmore",
+]
 
 [[package]]
 name = "pipec-tests"
 version = "0.1.0"
 dependencies = [
+ "pipec-arena",
  "pipec-ast",
 ]
 

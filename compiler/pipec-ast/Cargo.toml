@@ -5,5 +5,7 @@ edition = "2024"
 
 [dependencies]
 bincode = { version = "2.0.1", features = ["derive"] }
+pipec-arena = { version = "0.1.0", path = "../pipec-arena" }
+pipec-arena-structures = { version = "0.1.0", path = "../pipec-arena-structures" }
 pipec-span = { version = "0.1.0", path = "../pipec-span" }
 putbackpeekmore = "0.1.2"

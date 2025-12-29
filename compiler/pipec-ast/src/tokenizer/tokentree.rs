@@ -1,23 +1,17 @@
-use crate::Token;
+use crate::tokenizer::Token;
+use crate::tokenizer::Tokenizer;
+use putbackpeekmore::PutBackPeekMore;
 
-#[derive(Default, Debug)]
-pub struct TokenTree {
-    stream: Vec<Token>,
-    pos: usize,
+#[derive(Debug)]
+pub struct TokenTree<'toks> {
+    pub(crate) stream: PutBackPeekMore<Tokenizer<'toks>, 4>,
 }
 
-impl TokenTree {
-    pub fn new(stream: Vec<Token>) -> Self {
-        Self { stream, pos: 0 }
+impl<'toks> TokenTree<'toks> {
+    pub fn next_token(&mut self) -> Option<Token> {
+        self.stream.next()
     }
-    pub fn current_token(&mut self) -> Option<&Token> {
-        self.stream.get(self.pos)
-    }
-    pub fn next_token(&mut self) -> Option<&Token> {
-        self.pos += 1;
-        self.stream.get(self.pos - 1)
-    }
-    pub fn peek(&mut self) -> Option<&Token> {
-        self.stream.get(self.pos)
+    pub fn peek(&mut self) -> &Option<Token> {
+        self.stream.peek()
     }
 }

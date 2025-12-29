@@ -19,6 +19,13 @@ impl<T, const SIZE: usize> AVec<T, SIZE> {
         }
     }
 
+    pub fn take(&self, input: usize) -> Option<&T> {
+        if input > self.index {
+            return None;
+        }
+        Some(&self.buf[input])
+    }
+
     pub fn push(&mut self, input: T) -> Result<(), AVecError> {
         if self.index == SIZE {
             return Err(AVecError::BufFilled);
