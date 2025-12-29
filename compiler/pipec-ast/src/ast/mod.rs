@@ -17,8 +17,8 @@ pub struct ASTGenerator<'this> {
     src: FileId,
     tokens: &'this mut TokenTree<'this>,
     guard: &'this mut RecursiveGuard,
-    arena: &'this mut Arena,
-    loader: &'this mut FileLoader,
+    pub arena: &'this mut Arena,
+    pub loader: &'this mut FileLoader,
     path: PathBuf,
 }
 
@@ -60,7 +60,6 @@ impl<'this> ASTGenerator<'this> {
 
     #[inline]
     pub(crate) fn advance_stream(&mut self) -> Option<Token> {
-        println!("{:#?}", self.peek_stream());
         self.tokens.next_token()
     }
     #[inline]
@@ -162,7 +161,6 @@ impl<'this> ASTGenerator<'this> {
 
     #[inline]
     pub(crate) fn consume_function_parameter(&mut self) -> FunctionDeclarationParameter {
-        println!("consuming function parameter");
         let name = self.must_ident();
         self.consume_whitespace();
         self.must(Token::Colon);
@@ -563,7 +561,6 @@ impl<'this> ASTGenerator<'this> {
                 varname = variable_name;
             }
             Some(Token::MutableKeyword) => {
-                println!("mutable here");
                 is_mutable = true;
                 self.consume_whitespace();
                 if let Some(Token::Ident(variable_name)) = self.advance_stream() {
@@ -910,7 +907,7 @@ impl<'this> ASTGenerator<'this> {
 }
 #[derive(Clone, Debug)]
 #[allow(unused)]
-pub struct Path(ASpan<AVec<PathNode, 20>>);
+pub struct Path(pub ASpan<AVec<PathNode, 20>>);
 
 #[derive(Debug)]
 pub struct PathNode {
@@ -924,7 +921,7 @@ pub enum FunctionNodeParams {
     Angles(ASpan<AVec<Path, 100>>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ASTNode {
     MainFunction {
         block: Block,
@@ -1071,17 +1068,17 @@ pub enum VariableType {
     Final,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(unused)]
 pub struct Block(ASpan<AVec<FunctionBlockStatements, 10000>>);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(unused)]
-pub struct FunctionDeclarationParameters(ASpan<AVec<FunctionDeclarationParameter, 20>>);
+pub struct FunctionDeclarationParameters(pub ASpan<AVec<FunctionDeclarationParameter, 20>>);
 
 #[derive(Debug, Clone)]
 #[allow(unused)]
 pub struct FunctionDeclarationParameter {
-    name: Span,
+    pub name: Span,
     pub arg_type: Path,
 }

@@ -3,7 +3,7 @@ use core::ops::Deref;
 use core::slice;
 use std::fmt::{Debug, Display};
 
-#[derive(Debug)]
+#[derive(Debug, Hash)]
 pub struct AVec<T, const SIZE: usize> {
     buf: [T; SIZE],
     index: usize,
@@ -34,6 +34,35 @@ impl<T, const SIZE: usize> AVec<T, SIZE> {
         self.buf[self.index] = input;
         self.index += 1;
         Ok(())
+    }
+
+    pub fn len(&self) -> usize {
+        self.index
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.index == 0
+    }
+
+    pub fn iter<'this>(&'this self) -> AVecIter<'this, T, SIZE> {
+        AVecIter {
+            index: 0,
+            iter: self,
+        }
+    }
+}
+
+pub struct AVecIter<'this, T, const SIZE: usize> {
+    index: usize,
+    iter: &'this AVec<T, SIZE>,
+}
+
+impl<'this, T, const SIZE: usize> Iterator for AVecIter<'this, T, SIZE> {
+    type Item = &'this T;
+    fn next(&mut self) -> Option<Self::Item> {
+        let out = self.iter.get(self.index);
+        self.index += 1;
+        out
     }
 }
 

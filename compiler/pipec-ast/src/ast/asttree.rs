@@ -3,12 +3,11 @@ use pipec_arena::{ASpan, Arena};
 use pipec_arena_structures::AVec;
 use pipec_file_loader::FileId;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ASTTree {
     stream: ASpan<AVec<ASTNode, 1000>>,
     pos: usize,
-    #[allow(unused)]
-    id: FileId,
+    pub id: FileId,
 }
 
 impl ASTTree {
@@ -23,10 +22,10 @@ impl ASTTree {
         let handle = arena.take(self.stream.clone());
         handle.get(self.pos)
     }
-    pub fn next_node(&mut self, arena: &mut Arena) -> Option<&ASTNode> {
+    pub fn next_node(&mut self, arena: &mut Arena) -> Option<ASTNode> {
         let handle = arena.take(self.stream.clone());
         self.pos += 1;
-        handle.get(self.pos - 1)
+        handle.get(self.pos - 1).cloned()
     }
     pub fn peek(&mut self, arena: &mut Arena) -> Option<&ASTNode> {
         let handle = arena.take(self.stream.clone());

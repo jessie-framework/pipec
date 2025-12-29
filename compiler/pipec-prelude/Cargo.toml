@@ -9,4 +9,5 @@ pipec-arena = { version = "0.1.0", path = "../pipec-arena" }
 pipec-args = { version = "0.1.0", path = "../pipec-args" }
 pipec-ast = { version = "0.1.0", path = "../pipec-ast" }
 pipec-file-loader = { version = "0.1.0", path = "../pipec-file-loader" }
+pipec-gst = { version = "0.1.0", path = "../pipec-gst" }
 pipec-semantic-analysis = { version = "0.1.0", path = "../pipec-semantic-analysis" }
