@@ -7,18 +7,11 @@ pub struct FileLoader {
     store: String,
 }
 
-/// A wrapper for string sources to ensure API correctness.
-pub struct FileData<'a> {
-    pub data: &'a str,
-}
-
 impl FileLoader {
-    fn load<'a>(&'a mut self, input: &PathBuf) -> std::io::Result<FileData<'a>> {
+    fn load<'a>(&'a mut self, input: &PathBuf) -> std::io::Result<&'a str> {
         let mut file = File::open(input)?;
         let bytes_read = file.read_to_string(&mut self.store)?;
-        Ok(FileData {
-            data: &self.store[self.store.len() - bytes_read..],
-        })
+        Ok(&self.store[self.store.len() - bytes_read..])
     }
 }
 
