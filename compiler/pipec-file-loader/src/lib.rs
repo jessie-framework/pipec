@@ -8,7 +8,7 @@ pub struct FileLoader {
 }
 
 impl FileLoader {
-    fn load<'a>(&'a mut self, input: &PathBuf) -> std::io::Result<&'a str> {
+    pub fn load<'a>(&'a mut self, input: &PathBuf) -> std::io::Result<&'a str> {
         let mut file = File::open(input)?;
         let bytes_read = file.read_to_string(&mut self.store)?;
         Ok(&self.store[self.store.len() - bytes_read..])
