@@ -1,40 +1,49 @@
+#![allow(unused_must_use)]
+use pipec_arena::{ASpan, Arena};
+use pipec_arena_structures::AVec;
+use pipec_span::Span;
 use std::path::PathBuf;
 
-use self::asttree::ASTTree;
-use crate::ASTFileReader;
 use crate::RecursiveGuard;
+use crate::ast::asttree::ASTTree;
 use crate::tokenizer::DigitType;
 use crate::tokenizer::Token;
+use crate::tokenizer::Tokenizer;
 use crate::tokenizer::tokentree::TokenTree;
-
 pub mod asttree;
 
 pub struct ASTGenerator<'this> {
-    tokens: &'this mut TokenTree,
+    src: &'this str,
+    tokens: &'this mut TokenTree<'this>,
     guard: &'this mut RecursiveGuard,
+    arena: &'this mut Arena,
     path: PathBuf,
 }
 
 impl<'this> ASTGenerator<'this> {
     pub fn tree(mut self) -> ASTTree {
-        let mut out = Vec::with_capacity(30);
+        let out = self.arena.alloc(AVec::new());
+        let out_handle = self.arena.take(out.clone());
         loop {
             let next = self.parse_value();
-            if next == ASTNode::EOF {
+            if matches!(next, ASTNode::EOF) {
                 break;
             }
-            out.push(next);
+            out_handle.push(next).unwrap();
         }
         ASTTree::new(out)
     }
-
     pub fn new(
-        tokens: &'this mut TokenTree,
+        src: &'this str,
+        tokens: &'this mut TokenTree<'this>,
+        arena: &'this mut Arena,
         path: PathBuf,
         guard: &'this mut RecursiveGuard,
     ) -> Self {
         let path = path.parent().unwrap().to_path_buf();
         Self {
+            src,
+            arena,
             tokens,
             path,
             guard,
@@ -42,12 +51,12 @@ impl<'this> ASTGenerator<'this> {
     }
 
     #[inline]
-    pub(crate) fn advance_stream(&mut self) -> Option<&Token> {
+    pub(crate) fn advance_stream(&mut self) -> Option<Token> {
         println!("{:#?}", self.peek_stream());
         self.tokens.next_token()
     }
     #[inline]
-    pub(crate) fn peek_stream(&mut self) -> Option<&Token> {
+    pub(crate) fn peek_stream(&mut self) -> &Option<Token> {
         self.tokens.peek()
     }
 
@@ -111,12 +120,13 @@ impl<'this> ASTGenerator<'this> {
 
     #[inline]
     pub(crate) fn next_is(&mut self, next: Token) -> bool {
-        self.peek_stream() == Some(&next)
+        self.peek_stream() == &Some(next)
     }
 
     #[inline]
     pub(crate) fn consume_function_parameters(&mut self) -> FunctionDeclarationParameters {
-        let mut out = FunctionDeclarationParameters::new();
+        let vec = self.arena.alloc(AVec::new());
+        let vec_handle = self.arena.take(vec.clone());
         self.must(Token::LeftParenthesis);
         loop {
             self.consume_whitespace();
@@ -124,26 +134,27 @@ impl<'this> ASTGenerator<'this> {
                 self.advance_stream();
                 break;
             }
-            out.push(self.consume_function_parameter());
+            vec_handle.push(self.consume_function_parameter());
             self.consume_whitespace();
             if self.next_is(Token::Comma) {
                 self.advance_stream();
                 continue;
             }
         }
-        out
+        FunctionDeclarationParameters(vec)
     }
 
     #[inline]
-    pub(crate) fn must_ident(&mut self) -> String {
+    pub(crate) fn must_ident(&mut self) -> Span {
         if let Some(Token::Ident(v)) = self.advance_stream() {
-            return v.to_string();
+            return v;
         }
         unreachable!()
     }
 
     #[inline]
     pub(crate) fn consume_function_parameter(&mut self) -> FunctionDeclarationParameter {
+        println!("consuming function parameter");
         let name = self.must_ident();
         self.consume_whitespace();
         self.must(Token::Colon);
@@ -155,7 +166,7 @@ impl<'this> ASTGenerator<'this> {
 
     #[inline]
     pub(crate) fn must(&mut self, val: Token) {
-        if self.advance_stream() != Some(&val) {
+        if self.advance_stream() != Some(val) {
             // TODO : compiler error
             unreachable!()
         }
@@ -184,34 +195,35 @@ impl<'this> ASTGenerator<'this> {
     }
 
     #[inline]
-    pub(crate) fn consume_mod_block(&mut self, mod_path: String) -> ASTNode {
+    pub(crate) fn consume_mod_block(&mut self, mod_path: Span) -> ASTNode {
         self.advance_stream();
-        let mut nodes = Vec::with_capacity(10);
+        let nodes = self.arena.alloc(AVec::new());
+        let nodes_handle = self.arena.take(nodes.clone());
         loop {
             self.consume_whitespace();
-            if self.peek_stream() == Some(&Token::RightCurly) {
+            if self.peek_stream() == &Some(Token::RightCurly) {
                 self.advance_stream();
                 break;
             }
-            nodes.push(self.parse_value());
+            nodes_handle.push(self.parse_value());
         }
         ASTNode::ModStatement {
             name: mod_path,
-            tree: ASTTree::from_vec(nodes),
+            tree: ASTTree::new(nodes),
         }
     }
 
     #[inline]
-    pub(crate) fn consume_node_from_fs(&mut self, mod_path: String) -> ASTNode {
+    pub(crate) fn consume_node_from_fs(&mut self, mod_path: Span) -> ASTNode {
         self.advance_stream();
         let path1 = {
             let mut cloned = self.path.clone();
-            cloned.push(format!("{}/mod.pipec", &mod_path));
+            cloned.push(format!("{}/mod.pipec", mod_path.parse(self.src)));
             cloned
         };
         let path2 = {
             let mut cloned = self.path.clone();
-            cloned.push(format!("{}.pipec", &mod_path));
+            cloned.push(format!("{}.pipec", mod_path.parse(self.src)));
             cloned
         };
 
@@ -227,26 +239,40 @@ impl<'this> ASTGenerator<'this> {
             unreachable!();
         }
         if path1.exists() {
-            let mut reader = ASTFileReader::new(&path1).unwrap_or_else(|_| {
-                // TODO : compiler error
-                unreachable!();
-            });
-            let hir = reader.generate_hir(self.guard);
+            let file_contents = std::fs::read_to_string(&path1).unwrap();
+
+            let mut tokentree = Tokenizer::new(&file_contents).tree();
+
+            let ast_generator = ASTGenerator::new(
+                &file_contents,
+                &mut tokentree,
+                self.arena,
+                path1,
+                self.guard,
+            );
+            let tree = ast_generator.tree();
             return ASTNode::ModStatement {
                 name: mod_path,
-                tree: hir,
+                tree,
             };
         }
 
         if path2.exists() {
-            let mut reader = ASTFileReader::new(&path2).unwrap_or_else(|_| {
-                // TODO : compiler error
-                unreachable!();
-            });
-            let hir = reader.generate_hir(self.guard);
+            let file_contents = std::fs::read_to_string(&path2).unwrap();
+
+            let mut tokentree = Tokenizer::new(&file_contents).tree();
+
+            let ast_generator = ASTGenerator::new(
+                &file_contents,
+                &mut tokentree,
+                self.arena,
+                path2,
+                self.guard,
+            );
+            let tree = ast_generator.tree();
             return ASTNode::ModStatement {
                 name: mod_path,
-                tree: hir,
+                tree,
             };
         }
 
@@ -260,7 +286,7 @@ impl<'this> ASTGenerator<'this> {
         self.consume_whitespace();
         if let Some(Token::Ident(v)) = self.advance_stream() {
             return ASTNode::ComponentDeclaration {
-                name: v.to_string(),
+                name: v,
                 block: self.consume_component_declaration_block(),
             };
         }
@@ -278,17 +304,19 @@ impl<'this> ASTGenerator<'this> {
                 unreachable!();
             }
         }
-        let mut contents = Vec::with_capacity(30);
+        let contents = self.arena.alloc(AVec::new());
+        let contents_handle = self.arena.take(contents.clone());
 
         loop {
             self.consume_whitespace();
             let next = self.peek_stream();
-            if next == Some(&Token::RightCurly) {
+            if next == &Some(Token::RightCurly) {
                 self.advance_stream();
                 break;
             }
-            contents.push(self.consume_component_declaration_statement());
+            contents_handle.push(self.consume_component_declaration_statement());
         }
+
         ComponentDeclarationBlock { contents }
     }
 
@@ -325,19 +353,13 @@ impl<'this> ASTGenerator<'this> {
 
     #[inline]
     pub(crate) fn consume_render_block_inner(&mut self) -> RenderBlock {
-        if self.advance_stream() != Some(&Token::LeftCurly) {
-            //TODO : compiler error
-            unreachable!();
-        }
+        self.must(Token::LeftCurly);
         self.consume_whitespace();
         let vertices_block = self.consume_vertices_block();
         self.consume_whitespace();
         let fragments_block = self.consume_fragments_block();
         self.consume_whitespace();
-        if self.advance_stream() != Some(&Token::RightCurly) {
-            //TODO : compiler error
-            unreachable!();
-        }
+        self.must(Token::RightCurly);
         RenderBlock {
             vertices_block,
             fragments_block,
@@ -346,13 +368,7 @@ impl<'this> ASTGenerator<'this> {
 
     #[inline]
     pub(crate) fn consume_vertices_block(&mut self) -> VerticesBlock {
-        {
-            let next = self.advance_stream();
-            if next != Some(&Token::VerticesKeyword) {
-                // TODO : compiler error
-                unreachable!()
-            }
-        }
+        self.must(Token::VerticesKeyword);
         self.consume_whitespace();
         VerticesBlock {
             block: self.consume_function_block(),
@@ -361,13 +377,7 @@ impl<'this> ASTGenerator<'this> {
 
     #[inline]
     pub(crate) fn consume_fragments_block(&mut self) -> FragmentsBlock {
-        {
-            let next = self.advance_stream();
-            if next != Some(&Token::FragmentsKeyword) {
-                // TODO : compiler error
-                unreachable!()
-            }
-        }
+        self.must(Token::FragmentsKeyword);
         self.consume_whitespace();
         FragmentsBlock {
             block: self.consume_function_block(),
@@ -379,8 +389,8 @@ impl<'this> ASTGenerator<'this> {
         &mut self,
     ) -> ComponentDeclarationBlockStatements {
         self.consume_whitespace();
-        let variablename: String = if let Some(Token::Ident(v)) = self.advance_stream() {
-            v.to_string()
+        let variablename = if let Some(Token::Ident(v)) = self.advance_stream() {
+            v
         } else {
             //TODO : compiler error
             unreachable!();
@@ -420,20 +430,19 @@ impl<'this> ASTGenerator<'this> {
 
     #[inline]
     pub(crate) fn consume_function_block(&mut self) -> Block {
-        if self.advance_stream() != Some(&Token::LeftCurly) {
-            //TODO : compiler error because left curly bracket was expected
-        }
-        let mut block = Block::default();
+        self.must(Token::LeftCurly);
+        let block = self.arena.alloc(AVec::new());
+        let block_handle = self.arena.take(block.clone());
         loop {
             self.consume_whitespace();
             let next = self.peek_stream();
-            if next == Some(&Token::RightCurly) {
+            if next == &Some(Token::RightCurly) {
                 self.advance_stream();
                 break;
             }
-            block.push(self.consume_a_block_statement());
+            block_handle.push(self.consume_a_block_statement());
         }
-        block
+        Block(block)
     }
 
     #[inline]
@@ -466,7 +475,7 @@ impl<'this> ASTGenerator<'this> {
         self.consume_whitespace();
         let exporting: Exported = match self.advance_stream() {
             Some(Token::Hash) => match self.advance_stream() {
-                Some(Token::Ident(name)) => match name.as_str() {
+                Some(Token::Ident(name)) => match name.parse(self.src) {
                     "col" => Exported::ColorBuiltin,
                     "pos" => Exported::PositionBuiltin,
                     _ => {
@@ -479,7 +488,7 @@ impl<'this> ASTGenerator<'this> {
                     unreachable!()
                 }
             },
-            Some(Token::Ident(name)) => Exported::Custom(name.to_string()),
+            Some(Token::Ident(name)) => Exported::Custom(name),
             _ => {
                 //TODO : compiler error
                 unreachable!()
@@ -505,7 +514,7 @@ impl<'this> ASTGenerator<'this> {
                 self.consume_whitespace();
                 decl_type = Some(self.consume_a_path());
                 self.consume_whitespace();
-                if self.advance_stream() == Some(&Token::EqualSign) {
+                if self.advance_stream() == Some(Token::EqualSign) {
                     self.consume_whitespace();
                     decl_expr = self.consume_an_expression();
                     self.consume_whitespace();
@@ -531,19 +540,20 @@ impl<'this> ASTGenerator<'this> {
         self.advance_stream();
         // let x : u32 = 0;
         self.consume_whitespace();
-        let varname: String;
+        let varname: Span;
         let vartype: Option<Path>;
         let declexpr: Option<Expression>;
         let mut is_mutable = false;
         match self.advance_stream() {
             Some(Token::Ident(variable_name)) => {
-                varname = variable_name.to_string();
+                varname = variable_name;
             }
             Some(Token::MutableKeyword) => {
+                println!("mutable here");
                 is_mutable = true;
                 self.consume_whitespace();
                 if let Some(Token::Ident(variable_name)) = self.advance_stream() {
-                    varname = variable_name.to_string();
+                    varname = variable_name;
                 } else {
                     //TODO : compiler error
                     unreachable!()
@@ -597,7 +607,7 @@ impl<'this> ASTGenerator<'this> {
     #[inline]
     pub(crate) fn consume_a_semicolon(&mut self) {
         let peek = self.peek_stream();
-        if peek == Some(&Token::Semicolon) {
+        if peek == &Some(Token::Semicolon) {
             self.advance_stream();
             return;
         }
@@ -628,9 +638,9 @@ impl<'this> ASTGenerator<'this> {
     pub(crate) fn consume_required_expression(&mut self) -> Expression {
         self.advance_stream();
         self.consume_whitespace();
-        Expression::RequiredExpression {
-            value: Box::new(self.consume_an_expression()),
-        }
+        let expr = self.consume_an_expression();
+        let value = self.arena.alloc(expr);
+        Expression::RequiredExpression { value }
     }
 
     #[inline]
@@ -645,58 +655,20 @@ impl<'this> ASTGenerator<'this> {
                 unreachable!()
             }
         };
-        self.consume_whitespace();
-        match self.peek_stream() {
-            Some(Token::Plus) => {
-                self.advance_stream();
-                Expression::UnaryOpExpression {
-                    optype: UnaryOpType::Add,
-                    lhs: Box::new(first),
-                    rhs: Box::new(self.consume_an_expression()),
-                }
-            }
-            Some(Token::Minus) => {
-                self.advance_stream();
-                Expression::UnaryOpExpression {
-                    optype: UnaryOpType::Subtract,
-                    lhs: Box::new(first),
-                    rhs: Box::new(self.consume_an_expression()),
-                }
-            }
-            Some(Token::Asterisk) => {
-                self.advance_stream();
-                Expression::UnaryOpExpression {
-                    optype: UnaryOpType::Multiply,
-                    lhs: Box::new(first),
-                    rhs: Box::new(self.consume_an_expression()),
-                }
-            }
-            Some(Token::Slash) => {
-                self.advance_stream();
-                Expression::UnaryOpExpression {
-                    optype: UnaryOpType::Divide,
-                    lhs: Box::new(first),
-                    rhs: Box::new(self.consume_an_expression()),
-                }
-            }
-            Some(Token::Modulo) => {
-                self.advance_stream();
-                Expression::UnaryOpExpression {
-                    optype: UnaryOpType::Mod,
-                    lhs: Box::new(first),
-                    rhs: Box::new(self.consume_an_expression()),
-                }
-            }
 
-            _ => first,
-        }
+        self.consume_whitespace();
+
+        first
     }
     #[inline]
     pub(crate) fn consume_list_expression(&mut self) -> Expression {
         self.advance_stream();
-        let mut values = Vec::with_capacity(10);
+        let exprs = self.arena.alloc(AVec::new());
+        let exprs_handle = self.arena.take(exprs.clone());
         loop {
-            values.push(self.consume_an_expression());
+            let expr = self.consume_an_expression();
+            exprs_handle.push(expr);
+
             self.consume_whitespace();
 
             let next = self.peek_stream();
@@ -707,7 +679,7 @@ impl<'this> ASTGenerator<'this> {
                 }
                 Some(Token::RightSquare) => {
                     self.advance_stream();
-                    return Expression::ListExpression { values };
+                    return Expression::ListExpression { values: exprs };
                 }
                 _ => {
                     //TODO : compiler error
@@ -720,17 +692,16 @@ impl<'this> ASTGenerator<'this> {
     pub(crate) fn consume_tilde_expression(&mut self) -> Expression {
         self.advance_stream();
         self.consume_whitespace();
+        let expr = self.consume_an_expression();
         Expression::TildeExpression {
-            value: Box::new(self.consume_an_expression()),
+            value: self.arena.alloc(expr),
         }
     }
 
     #[inline]
     pub(crate) fn consume_string_expression(&mut self) -> Expression {
         if let Some(Token::Ident(v)) = self.advance_stream() {
-            return Expression::StringExpression {
-                value: v.to_string(),
-            };
+            return Expression::StringExpression { value: v };
         }
         //TODO : compiler error
         unreachable!();
@@ -739,9 +710,10 @@ impl<'this> ASTGenerator<'this> {
     #[inline]
     pub(crate) fn consume_tuple_expression(&mut self) -> Expression {
         self.advance_stream();
-        let mut values = Vec::with_capacity(10);
+        let values = self.arena.alloc(AVec::new());
+        let values_handle = self.arena.take(values.clone());
         loop {
-            values.push(self.consume_an_expression());
+            values_handle.push(self.consume_an_expression());
             self.consume_whitespace();
 
             let next = self.peek_stream();
@@ -769,10 +741,7 @@ impl<'this> ASTGenerator<'this> {
             Some(Token::Digit {
                 val: value,
                 digittype,
-            }) => Expression::NumberExpression {
-                value: value.to_string(),
-                digittype: *digittype,
-            },
+            }) => Expression::NumberExpression { value, digittype },
             _v => {
                 //TODO : compile error
                 unreachable!()
@@ -782,42 +751,47 @@ impl<'this> ASTGenerator<'this> {
         match self.peek_stream() {
             Some(Token::Plus) => {
                 self.advance_stream();
+                let expr = self.consume_an_expression();
                 Expression::UnaryOpExpression {
                     optype: UnaryOpType::Add,
-                    lhs: Box::new(first),
-                    rhs: Box::new(self.consume_an_expression()),
+                    lhs: self.arena.alloc(first),
+                    rhs: self.arena.alloc(expr),
                 }
             }
             Some(Token::Minus) => {
                 self.advance_stream();
+                let expr = self.consume_an_expression();
                 Expression::UnaryOpExpression {
                     optype: UnaryOpType::Subtract,
-                    lhs: Box::new(first),
-                    rhs: Box::new(self.consume_an_expression()),
+                    lhs: self.arena.alloc(first),
+                    rhs: self.arena.alloc(expr),
                 }
             }
             Some(Token::Asterisk) => {
                 self.advance_stream();
+                let expr = self.consume_an_expression();
                 Expression::UnaryOpExpression {
                     optype: UnaryOpType::Multiply,
-                    lhs: Box::new(first),
-                    rhs: Box::new(self.consume_an_expression()),
+                    lhs: self.arena.alloc(first),
+                    rhs: self.arena.alloc(expr),
                 }
             }
             Some(Token::Slash) => {
                 self.advance_stream();
+                let expr = self.consume_an_expression();
                 Expression::UnaryOpExpression {
                     optype: UnaryOpType::Divide,
-                    lhs: Box::new(first),
-                    rhs: Box::new(self.consume_an_expression()),
+                    lhs: self.arena.alloc(first),
+                    rhs: self.arena.alloc(expr),
                 }
             }
             Some(Token::Modulo) => {
                 self.advance_stream();
+                let expr = self.consume_an_expression();
                 Expression::UnaryOpExpression {
                     optype: UnaryOpType::Mod,
-                    lhs: Box::new(first),
-                    rhs: Box::new(self.consume_an_expression()),
+                    lhs: self.arena.alloc(first),
+                    rhs: self.arena.alloc(expr),
                 }
             }
 
@@ -837,15 +811,16 @@ impl<'this> ASTGenerator<'this> {
 
     #[inline]
     fn consume_a_path(&mut self) -> Path {
-        let mut out = Path::default();
+        let out = self.arena.alloc(AVec::new());
+        let out_handle = self.arena.take(out.clone());
         loop {
             let next = self.peek_stream();
             match next {
                 Some(Token::Ident(v)) => {
-                    let name = v.to_string();
+                    let name = *v;
                     self.advance_stream();
                     let param = self.consume_path_param();
-                    out.add_child(PathNode { name, param });
+                    out_handle.push(PathNode { name, param });
                     continue;
                 }
                 Some(Token::DoubleColon) => {
@@ -857,7 +832,7 @@ impl<'this> ASTGenerator<'this> {
                 }
             }
         }
-        out
+        Path(out)
     }
 
     #[inline]
@@ -876,16 +851,15 @@ impl<'this> ASTGenerator<'this> {
     }
 
     #[inline]
-    pub(crate) fn consume_angle_params(&mut self) -> Vec<Path> {
-        if self.advance_stream() != Some(&Token::LeftAngle) {
-            //TODO : compiler error
-        }
-        let mut out = Vec::with_capacity(4);
+    pub(crate) fn consume_angle_params(&mut self) -> ASpan<AVec<Path, 100>> {
+        self.must(Token::LeftAngle);
+        let out = self.arena.alloc(AVec::new());
+        let out_handle = self.arena.take(out.clone());
         loop {
             self.consume_whitespace();
             match self.peek_stream() {
                 Some(Token::Ident(_)) => {
-                    out.push(self.consume_a_path());
+                    out_handle.push(self.consume_a_path());
                     self.consume_whitespace();
                     match self.peek_stream() {
                         Some(Token::Comma) => {
@@ -915,89 +889,69 @@ impl<'this> ASTGenerator<'this> {
 
     #[inline]
     pub(crate) fn consume_whitespace(&mut self) {
-        while self.tokens.peek() == Some(&Token::Whitespace) {
+        while self.tokens.peek() == &Some(Token::Whitespace) {
             self.tokens.next_token();
         }
     }
 }
-#[derive(Clone, Debug, PartialEq, Default, Eq, Hash)]
-pub struct Path(pub Vec<PathNode>);
+#[derive(Clone, Debug)]
+#[allow(unused)]
+pub struct Path(ASpan<AVec<PathNode, 20>>);
 
-impl Path {
-    pub fn inner(&self) -> &[PathNode] {
-        &self.0
-    }
-
-    pub fn add_child(&mut self, input: PathNode) {
-        self.0.push(input);
-    }
-
-    pub fn only_paramless(&self) -> bool {
-        for i in &self.0 {
-            match i.param {
-                None => {}
-                _ => {
-                    return false;
-                }
-            }
-        }
-        true
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Debug)]
 pub struct PathNode {
-    pub name: String,
+    pub name: Span,
     pub param: Option<FunctionNodeParams>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Debug)]
 pub enum FunctionNodeParams {
-    Tuple(Vec<Expression>),
-    Angles(Vec<Path>),
+    Tuple(ASpan<AVec<Expression, 100>>),
+    Angles(ASpan<AVec<Path, 100>>),
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug)]
 pub enum ASTNode {
     MainFunction {
         block: Block,
     },
     FunctionDeclaration {
-        name: String,
+        name: Span,
         params: FunctionDeclarationParameters,
         block: Block,
         out_type: Option<Path>,
     },
     ViewportDeclaration {
-        name: String,
+        name: Span,
         params: FunctionDeclarationParameters,
         block: Block,
     },
 
     StaticVariableDeclaration, // TODO
     ComponentDeclaration {
-        name: String,
+        name: Span,
         block: ComponentDeclarationBlock,
     },
     UsingStatement {
         using: Path,
     },
     ModStatement {
-        name: String,
+        name: Span,
         tree: ASTTree,
     },
     EOF,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone)]
+#[allow(unused)]
 pub struct ComponentDeclarationBlock {
-    contents: Vec<ComponentDeclarationBlockStatements>,
+    contents: ASpan<AVec<ComponentDeclarationBlockStatements, 300>>,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug)]
 pub enum ComponentDeclarationBlockStatements {
     FinalVariableDeclaration {
-        variablename: String,
+        variablename: Span,
         variabletype: Option<Path>,
         declarationexpression: Option<Expression>,
     },
@@ -1013,26 +967,29 @@ pub enum ComponentDeclarationBlockStatements {
     },
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug)]
+#[allow(unused)]
 pub struct RenderBlock {
     vertices_block: VerticesBlock,
     fragments_block: FragmentsBlock,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug)]
+#[allow(unused)]
 pub struct VerticesBlock {
     block: Block,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug)]
+#[allow(unused)]
 pub struct FragmentsBlock {
     block: Block,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug)]
 pub enum FunctionBlockStatements {
     VariableDeclaration {
-        variablename: String,
+        variablename: Span,
         variabletype: Option<Path>,
         declarationexpression: Option<Expression>,
         is_mutable: bool,
@@ -1051,37 +1008,37 @@ pub enum FunctionBlockStatements {
 pub enum Exported {
     ColorBuiltin,
     PositionBuiltin,
-    Custom(String),
+    Custom(Span),
 }
 
-#[derive(Debug, PartialEq, Clone, Eq, Hash)]
+#[derive(Debug)]
 pub enum Expression {
     NumberExpression {
-        value: String,
+        value: Span,
         digittype: DigitType,
     },
     PathExpression {
         value: Path,
     },
     TupleExpression {
-        values: Vec<Self>,
+        values: ASpan<AVec<Self, 100>>,
     },
     ListExpression {
-        values: Vec<Self>,
+        values: ASpan<AVec<Self, 50>>,
     },
     UnaryOpExpression {
         optype: UnaryOpType,
-        lhs: Box<Self>,
-        rhs: Box<Self>,
+        lhs: ASpan<Self>,
+        rhs: ASpan<Self>,
     },
     TildeExpression {
-        value: Box<Self>,
+        value: ASpan<Self>,
     },
     RequiredExpression {
-        value: Box<Self>,
+        value: ASpan<Self>,
     },
     StringExpression {
-        value: String,
+        value: Span,
     },
 }
 
@@ -1100,38 +1057,17 @@ pub enum VariableType {
     Final,
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub struct Block(Vec<FunctionBlockStatements>);
+#[derive(Debug)]
+#[allow(unused)]
+pub struct Block(ASpan<AVec<FunctionBlockStatements, 10000>>);
 
-impl Block {
-    pub fn push(&mut self, input: FunctionBlockStatements) {
-        self.0.push(input);
-    }
-}
+#[derive(Debug)]
+#[allow(unused)]
+pub struct FunctionDeclarationParameters(ASpan<AVec<FunctionDeclarationParameter, 20>>);
 
-impl Default for Block {
-    fn default() -> Self {
-        Self(Vec::with_capacity(30))
-    }
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct FunctionDeclarationParameters(Vec<FunctionDeclarationParameter>);
-
-impl FunctionDeclarationParameters {
-    pub(crate) fn new() -> Self {
-        Self(Vec::with_capacity(10))
-    }
-    pub(crate) fn push(&mut self, val: FunctionDeclarationParameter) {
-        self.0.push(val);
-    }
-    pub fn handle(&self) -> &[FunctionDeclarationParameter] {
-        &self.0
-    }
-}
-
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone)]
+#[allow(unused)]
 pub struct FunctionDeclarationParameter {
-    name: String,
+    name: Span,
     pub arg_type: Path,
 }

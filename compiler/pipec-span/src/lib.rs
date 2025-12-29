@@ -4,15 +4,18 @@ use std::str::Chars;
 
 /// A span in a source later used to be read from using the function parse().
 /// The idea is to not store entire Strings inside tokens, but rather these less expensive structs for more performance.
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, PartialEq, Debug)]
 pub struct Span {
-    begin: usize,
-    end: usize,
+    pub begin: usize,
+    pub end: usize,
 }
 
 impl Span {
-    pub fn parse<'b>(&mut self, input: &'b str) -> &'b str {
+    pub fn parse<'b>(&self, input: &'b str) -> &'b str {
         &input[self.begin..self.end]
+    }
+    pub fn end<'a>(&mut self, input: &SpannedIterator<'a>) {
+        self.end = input.index();
     }
 }
 
@@ -38,6 +41,13 @@ impl<'a> SpannedIterator<'a> {
         }
         next
     }
+    pub fn new_span(&self) -> Span {
+        let index = self.index();
+        Span {
+            begin: index,
+            end: index,
+        }
+    }
 
     pub fn peek(&mut self) -> &Option<char> {
         self.chars.peek()
@@ -47,7 +57,7 @@ impl<'a> SpannedIterator<'a> {
         self.chars.peek_value(input)
     }
 
-    fn index(&self) -> usize {
+    pub fn index(&self) -> usize {
         self.index
     }
 }

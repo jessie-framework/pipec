@@ -1,18 +1,35 @@
 use crate::tokenizer::tokentree::TokenTree;
 use pipec_span::{Span, SpannedIterator};
 pub mod tokentree;
+use putbackpeekmore::PutBackPeekMore;
 
 pub struct Tokenizer<'chars> {
+    src: &'chars str,
     stream: SpannedIterator<'chars>,
     position: usize,
+}
+
+impl<'chars> Iterator for Tokenizer<'chars> {
+    type Item = Token;
+    fn next(&mut self) -> Option<Self::Item> {
+        let next = self.consume_next_token();
+        if next == Token::EOF {
+            return None;
+        }
+        Some(next)
+    }
 }
 
 impl<'chars> Tokenizer<'chars> {
     pub fn new(input: &'chars str) -> Self {
         Self {
+            src: input,
             stream: SpannedIterator::new(input),
             position: 0,
         }
+    }
+    pub(crate) fn new_span(&mut self) -> Span {
+        self.stream.new_span()
     }
 
     pub(crate) fn peek_stream(&mut self) -> &Option<char> {
@@ -248,41 +265,19 @@ impl<'chars> Tokenizer<'chars> {
     #[inline]
     pub(crate) fn consume_string(&mut self) -> Token {
         self.advance_stream();
-        let mut out = String::with_capacity(30);
+        let mut out = self.new_span();
         loop {
-            let peek = self.peek_stream();
-            match peek {
+            let next = self.advance_stream();
+            match next {
                 Some('"') => {
-                    self.advance_stream();
+                    out.end(&self.stream);
                     return Token::String(out);
                 }
-                Some(v) => {
-                    if *v == '\\' {
-                        out.push(self.consume_escaped_char())
-                    } else {
-                        out.push(*v);
-                    } // TODO : we are going to analyze strings later
-                    self.advance_stream();
-                }
                 None => {
-                    //TODO: Compiler error
-                    unreachable!();
+                    // TODO : compiler error
+                    unreachable!()
                 }
-            }
-        }
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn consume_escaped_char(&mut self) -> char {
-        self.advance_stream();
-        match self.peek_stream_value(2) {
-            [Some('u'), Some('{')] => {
-                self.advance_stream();
-                self.advance_stream();
-                todo!()
-            }
-            _ => {
-                todo!()
+                _ => {}
             }
         }
     }
@@ -300,14 +295,13 @@ impl<'chars> Tokenizer<'chars> {
 
     #[inline]
     pub(crate) fn consume_digit_token(&mut self) -> Token {
-        let mut out = String::with_capacity(30);
+        let mut out = self.new_span();
         let mut digittype = DigitType::Int;
         loop {
             let peek = self.peek_stream();
             if let Some(v) = peek
                 && (v.is_ascii_digit())
             {
-                out.push(*v);
                 self.advance_stream();
                 continue;
             }
@@ -317,6 +311,7 @@ impl<'chars> Tokenizer<'chars> {
             }
             break;
         }
+        out.end(&self.stream);
         Token::Digit {
             val: out,
             digittype,
@@ -364,26 +359,26 @@ impl<'chars> Tokenizer<'chars> {
     }
     #[inline]
     pub(crate) fn consume_ident_token(&mut self) -> Token {
-        let mut out: String = "".into();
+        let mut out = self.new_span();
         loop {
             let peek = self.peek_stream();
             if let Some(v) = peek
                 && (v.is_ascii_alphabetic() || v.is_ascii_digit() || *v == '_')
             {
-                out.push(*v);
                 self.advance_stream();
                 continue;
             }
             break;
         }
+        out.end(&self.stream);
 
-        Self::match_for_keywords(out)
+        self.match_for_keywords(out)
     }
 
     #[inline]
-    pub(crate) fn match_for_keywords(input: String) -> Token {
+    pub(crate) fn match_for_keywords(&mut self, input: Span) -> Token {
         use Token::*;
-        match input.as_str() {
+        match input.parse(self.src) {
             "using" => UsingKeyword,
             "let" => LetKeyword,
             "viewport" => ViewportKeyword,
@@ -402,16 +397,10 @@ impl<'chars> Tokenizer<'chars> {
         }
     }
 
-    pub fn tree(mut self) -> TokenTree {
-        let mut out = Vec::with_capacity(1000);
-        loop {
-            let next = self.consume_next_token();
-            if next == Token::EOF {
-                break;
-            }
-            out.push(next);
+    pub fn tree(self) -> TokenTree<'chars> {
+        TokenTree {
+            stream: PutBackPeekMore::new(self),
         }
-        TokenTree::new(out)
     }
 }
 
@@ -516,11 +505,11 @@ pub enum Token {
     /// function
     FunctionKeyword,
     /// 21213
-    Digit { val: String, digittype: DigitType },
+    Digit { val: Span, digittype: DigitType },
     /// things_like_this or this_2
-    Ident(String),
+    Ident(Span),
     /// "things like this"
-    String(String),
+    String(Span),
     /// 'h'    Char(char),
     EOF,
 }

@@ -1,16 +1,30 @@
+use pipec_arena::{Arena, Size};
 use pipec_args::{Args, Parser};
-use pipec_ast::{ASTFileReader, RecursiveGuard};
-use pipec_semantic_analysis::semantic_analyzer::GlobalSymbolTree;
+use pipec_ast::{RecursiveGuard, ast::ASTGenerator, tokenizer::Tokenizer};
 
 /// This is where the compiler code begins.
 pub fn run_compiler() {
     let args = Args::parse();
+    println!("{:#?}", &args.file);
 
-    let mut guard = RecursiveGuard::default();
-    let mut reader = ASTFileReader::new(&args.file).unwrap();
-    let mut hirtree = reader.generate_hir(&mut guard);
+    let file_contents = std::fs::read_to_string(&args.file).unwrap();
 
-    let mut gst = GlobalSymbolTree::default();
-    gst.gen_symbols(&mut hirtree);
-    println!("{:#?}", gst);
+    let mut tokentree = Tokenizer::new(&file_contents).tree();
+    let mut arena = Arena::new(Size::Gigs(1));
+    let mut guard = RecursiveGuard::new();
+
+    let mut ast_generator = ASTGenerator::new(
+        &file_contents,
+        &mut tokentree,
+        &mut arena,
+        args.file,
+        &mut guard,
+    );
+    loop {
+        let next = ast_generator.parse_value();
+        if matches!(next, pipec_ast::ast::ASTNode::EOF) {
+            break;
+        }
+    }
+    println!("success!");
 }
