@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["pipecc","pipec-errors","pipec-ast","pipec-args", "pipec-mir", "pipec-tests", "pipec-semantic-analysis", "pipec-prelude", "pipec-arena", "pipec-span"]
+members = ["pipecc","pipec-errors","pipec-ast","pipec-args", "pipec-mir", "pipec-tests", "pipec-semantic-analysis", "pipec-prelude", "pipec-arena", "pipec-span", "pipec-file-loader"]
 
 [profile.release]
 debug = true
