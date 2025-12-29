@@ -167,6 +167,10 @@ name = "pipec-errors"
 version = "0.1.0"
 
 [[package]]
+name = "pipec-file-loader"
+version = "0.1.0"
+
+[[package]]
 name = "pipec-mir"
 version = "0.1.0"
 dependencies = [
