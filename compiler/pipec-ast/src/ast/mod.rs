@@ -35,6 +35,10 @@ impl<'this> ASTGenerator<'this> {
         }
         ASTTree::new(out, self.src)
     }
+
+    pub fn file_id(&self) -> FileId {
+        self.src
+    }
     pub fn new(
         src: FileId,
         tokens: &'this mut TokenTree<'this>,
