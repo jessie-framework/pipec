@@ -17,6 +17,7 @@ pub struct ASTGenerator<'this> {
     tokens: &'this mut TokenTree<'this>,
     guard: &'this mut RecursiveGuard,
     arena: &'this mut Arena,
+    loader: &'this mut FileLoader,
     path: PathBuf,
 }
 
@@ -39,6 +40,7 @@ impl<'this> ASTGenerator<'this> {
         arena: &'this mut Arena,
         path: PathBuf,
         guard: &'this mut RecursiveGuard,
+        loader: &'this mut FileLoader,
     ) -> Self {
         let path = path.parent().unwrap().to_path_buf();
         Self {
@@ -47,6 +49,7 @@ impl<'this> ASTGenerator<'this> {
             tokens,
             path,
             guard,
+            loader,
         }
     }
 
