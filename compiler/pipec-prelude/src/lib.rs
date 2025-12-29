@@ -1,6 +1,7 @@
 use pipec_arena::{Arena, Size};
 use pipec_args::{Args, Parser};
 use pipec_ast::{RecursiveGuard, ast::ASTGenerator, tokenizer::Tokenizer};
+use pipec_file_loader::*;
 
 /// This is where the compiler code begins.
 pub fn run_compiler() {

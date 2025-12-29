@@ -185,6 +185,7 @@ dependencies = [
  "pipec-arena",
  "pipec-args",
  "pipec-ast",
+ "pipec-file-loader",
  "pipec-semantic-analysis",
 ]
 
