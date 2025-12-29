@@ -8,18 +8,21 @@ pub fn run_compiler() {
     let args = Args::parse();
     println!("{:#?}", &args.file);
 
-    let file_contents = std::fs::read_to_string(&args.file).unwrap();
+    let mut loader = FileLoader::default();
+    let file_id = loader.open(&args.file).unwrap();
+    let file_contents = loader.load(file_id);
 
     let mut tokentree = Tokenizer::new(&file_contents).tree();
     let mut arena = Arena::new(Size::Gigs(1));
     let mut guard = RecursiveGuard::default();
 
     let mut ast_generator = ASTGenerator::new(
-        &file_contents,
+        file_id,
         &mut tokentree,
         &mut arena,
         args.file,
         &mut guard,
+        &mut loader,
     );
     loop {
         let next = ast_generator.parse_value();

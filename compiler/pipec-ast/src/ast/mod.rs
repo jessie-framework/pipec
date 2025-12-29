@@ -1,6 +1,7 @@
 #![allow(unused_must_use)]
 use pipec_arena::{ASpan, Arena};
 use pipec_arena_structures::AVec;
+use pipec_file_loader::{FileId, FileLoader};
 use pipec_span::Span;
 use std::path::PathBuf;
 
@@ -13,7 +14,7 @@ use crate::tokenizer::tokentree::TokenTree;
 pub mod asttree;
 
 pub struct ASTGenerator<'this> {
-    src: &'this str,
+    src: FileId,
     tokens: &'this mut TokenTree<'this>,
     guard: &'this mut RecursiveGuard,
     arena: &'this mut Arena,
@@ -32,10 +33,10 @@ impl<'this> ASTGenerator<'this> {
             }
             out_handle.push(next).unwrap();
         }
-        ASTTree::new(out)
+        ASTTree::new(out, self.src)
     }
     pub fn new(
-        src: &'this str,
+        src: FileId,
         tokens: &'this mut TokenTree<'this>,
         arena: &'this mut Arena,
         path: PathBuf,
@@ -212,21 +213,22 @@ impl<'this> ASTGenerator<'this> {
         }
         ASTNode::ModStatement {
             name: mod_path,
-            tree: ASTTree::new(nodes),
+            tree: ASTTree::new(nodes, self.src),
         }
     }
 
     #[inline]
     pub(crate) fn consume_node_from_fs(&mut self, mod_path: Span) -> ASTNode {
+        let src = self.loader.load(self.src);
         self.advance_stream();
         let path1 = {
             let mut cloned = self.path.clone();
-            cloned.push(format!("{}/mod.pipec", mod_path.parse(self.src)));
+            cloned.push(format!("{}/mod.pipec", mod_path.parse(&src)));
             cloned
         };
         let path2 = {
             let mut cloned = self.path.clone();
-            cloned.push(format!("{}.pipec", mod_path.parse(self.src)));
+            cloned.push(format!("{}.pipec", mod_path.parse(&src)));
             cloned
         };
 
@@ -242,16 +244,18 @@ impl<'this> ASTGenerator<'this> {
             unreachable!();
         }
         if path1.exists() {
-            let file_contents = std::fs::read_to_string(&path1).unwrap();
+            let file_id = self.loader.open(&path1).unwrap();
+            let file_contents = self.loader.load(file_id);
 
             let mut tokentree = Tokenizer::new(&file_contents).tree();
 
             let ast_generator = ASTGenerator::new(
-                &file_contents,
+                file_id,
                 &mut tokentree,
                 self.arena,
                 path1,
                 self.guard,
+                self.loader,
             );
             let tree = ast_generator.tree();
             return ASTNode::ModStatement {
@@ -261,16 +265,18 @@ impl<'this> ASTGenerator<'this> {
         }
 
         if path2.exists() {
-            let file_contents = std::fs::read_to_string(&path2).unwrap();
+            let file_id = self.loader.open(&path2).unwrap();
+            let file_contents = self.loader.load(file_id);
 
             let mut tokentree = Tokenizer::new(&file_contents).tree();
 
             let ast_generator = ASTGenerator::new(
-                &file_contents,
+                file_id,
                 &mut tokentree,
                 self.arena,
-                path2,
+                path1,
                 self.guard,
+                self.loader,
             );
             let tree = ast_generator.tree();
             return ASTNode::ModStatement {
@@ -474,11 +480,12 @@ impl<'this> ASTGenerator<'this> {
 
     #[inline]
     pub(crate) fn consume_export_declaration(&mut self) -> FunctionBlockStatements {
+        let src = self.loader.load(self.src);
         self.advance_stream();
         self.consume_whitespace();
         let exporting: Exported = match self.advance_stream() {
             Some(Token::Hash) => match self.advance_stream() {
-                Some(Token::Ident(name)) => match name.parse(self.src) {
+                Some(Token::Ident(name)) => match name.parse(&src) {
                     "col" => Exported::ColorBuiltin,
                     "pos" => Exported::PositionBuiltin,
                     _ => {
