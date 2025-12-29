@@ -5,3 +5,4 @@ edition = "2024"
 
 [dependencies]
 pipec-ast = { version = "0.1.0", path = "../pipec-ast" }
+pipec-file-loader = { version = "0.1.0", path = "../pipec-file-loader" }
