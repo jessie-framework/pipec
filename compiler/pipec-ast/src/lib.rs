@@ -11,7 +11,10 @@ impl RecursiveGuard {
     pub fn push(&mut self, input: PathBuf) {
         self.0.push(input)
     }
-    pub fn new() -> Self {
+}
+
+impl Default for RecursiveGuard {
+    fn default() -> Self {
         Self(Vec::with_capacity(30))
     }
 }

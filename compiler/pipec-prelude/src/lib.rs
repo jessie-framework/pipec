@@ -11,7 +11,7 @@ pub fn run_compiler() {
 
     let mut tokentree = Tokenizer::new(&file_contents).tree();
     let mut arena = Arena::new(Size::Gigs(1));
-    let mut guard = RecursiveGuard::new();
+    let mut guard = RecursiveGuard::default();
 
     let mut ast_generator = ASTGenerator::new(
         &file_contents,

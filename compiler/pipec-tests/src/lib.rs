@@ -19,7 +19,7 @@ macro_rules! test_file_generation {
         let file_contents = include_str!($filename);
         let mut tokentree = Tokenizer::new(&file_contents).tree();
         let mut arena = Arena::new(Size::Megs(10));
-        let mut guard = RecursiveGuard::new();
+        let mut guard = RecursiveGuard::default();
 
         let mut ast_generator = ASTGenerator::new(
             file_contents,
