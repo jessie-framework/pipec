@@ -172,6 +172,16 @@ name = "pipec-file-loader"
 version = "0.1.0"
 
 [[package]]
+name = "pipec-gst"
+version = "0.1.0"
+dependencies = [
+ "pipec-arena",
+ "pipec-ast",
+ "pipec-file-loader",
+ "pipec-span",
+]
+
+[[package]]
 name = "pipec-mir"
 version = "0.1.0"
 dependencies = [
@@ -187,6 +197,7 @@ dependencies = [
  "pipec-args",
  "pipec-ast",
  "pipec-file-loader",
+ "pipec-gst",
  "pipec-semantic-analysis",
 ]
 

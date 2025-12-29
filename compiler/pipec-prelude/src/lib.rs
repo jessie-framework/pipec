@@ -2,6 +2,7 @@ use pipec_arena::{Arena, Size};
 use pipec_args::{Args, Parser};
 use pipec_ast::{RecursiveGuard, ast::ASTGenerator, tokenizer::Tokenizer};
 use pipec_file_loader::*;
+use pipec_gst::GlobalSymbolTree;
 
 /// This is where the compiler code begins.
 pub fn run_compiler() {
@@ -16,7 +17,7 @@ pub fn run_compiler() {
     let mut arena = Arena::new(Size::Gigs(1));
     let mut guard = RecursiveGuard::default();
 
-    let mut ast_generator = ASTGenerator::new(
+    let ast_generator = ASTGenerator::new(
         file_id,
         &mut tokentree,
         &mut arena,
@@ -24,11 +25,9 @@ pub fn run_compiler() {
         &mut guard,
         &mut loader,
     );
-    loop {
-        let next = ast_generator.parse_value();
-        if matches!(next, pipec_ast::ast::ASTNode::EOF) {
-            break;
-        }
-    }
-    println!("success!");
+    let ast_tree = ast_generator.tree();
+
+    let mut gst = GlobalSymbolTree::new(&mut arena, &mut loader, ast_tree);
+    gst.generate();
+    println!("{:#?}", gst.map);
 }
