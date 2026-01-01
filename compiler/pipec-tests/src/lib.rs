@@ -17,12 +17,12 @@ macro_rules! test_file_generation {
             .join($filename);
         let c = file_dir.clone();
 
+        let mut arena = Arena::new(Size::Megs(10));
         let mut loader = FileLoader::default();
-        let file_id = loader.open(&file_dir).unwrap();
+        let file_id = loader.open(&file_dir, &mut arena).unwrap();
 
         let file_contents = include_str!($filename);
         let mut tokentree = Tokenizer::new(&file_contents).tree();
-        let mut arena = Arena::new(Size::Megs(10));
         let mut guard = RecursiveGuard::default();
 
         let mut ast_generator = ASTGenerator::new(
