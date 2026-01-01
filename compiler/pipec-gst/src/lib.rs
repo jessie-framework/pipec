@@ -1,4 +1,5 @@
 use pipec_arena::Arena;
+use pipec_arena_structures::ListNode;
 use pipec_ast::ast::ASTNode;
 use pipec_ast::ast::FunctionDeclarationParameters;
 use pipec_ast::ast::Path;
@@ -121,28 +122,33 @@ impl<'this> GlobalSymbolTree<'this> {
         self.src = old_src;
     }
     pub(crate) fn type_from_path(&mut self, input: &Path) -> Type {
-        let vec = self.arena.take(input.0.clone());
+        let vec = input.0.clone();
         use Type::*;
 
-        if vec.len() == 1 {
-            let first = vec.first().unwrap();
-            let name = first.name.parse(&self.src);
-            match name {
-                "i8" => return I8,
-                "u8" => return U8,
-                "f8" => return F8,
-                "i16" => return I16,
-                "u16" => return U16,
-                "f16" => return F16,
-                "i32" => return I32,
-                "u32" => return U32,
-                "f32" => return F32,
-                "i64" => return I64,
-                "u64" => return U64,
-                "f64" => return F64,
-                "fport" => return FPort,
-                "void" => return Void,
-                _ => {}
+        if vec.len_eq(1, self.arena) {
+            let first = vec.first(self.arena);
+            match first {
+                ListNode::Empty => {}
+                ListNode::Node(val, _) => {
+                    let name = val.name.parse(&self.src);
+                    match name {
+                        "i8" => return I8,
+                        "u8" => return U8,
+                        "f8" => return F8,
+                        "i16" => return I16,
+                        "u16" => return U16,
+                        "f16" => return F16,
+                        "i32" => return I32,
+                        "u32" => return U32,
+                        "f32" => return F32,
+                        "i64" => return I64,
+                        "u64" => return U64,
+                        "f64" => return F64,
+                        "fport" => return FPort,
+                        "void" => return Void,
+                        _ => {}
+                    }
+                }
             }
         }
         Link(self.path_to_symbol_name(input))
@@ -163,9 +169,9 @@ impl<'this> GlobalSymbolTree<'this> {
     }
 
     pub(crate) fn path_to_symbol_name(&mut self, input: &Path) -> SymbolName {
-        let vec = self.arena.take(input.0.clone());
+        let vec = input.0.clone();
         let mut out = SymbolName::default();
-        for i in vec.iter() {
+        for i in vec.iter(self.arena) {
             let name = i.name.parse(&self.src).to_string();
             out.path.push(name);
         }

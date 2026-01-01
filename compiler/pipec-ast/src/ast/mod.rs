@@ -1,6 +1,6 @@
 #![allow(unused_must_use)]
 use pipec_arena::{ASpan, Arena};
-use pipec_arena_structures::AVec;
+use pipec_arena_structures::{ADynList, AVec};
 use pipec_file_loader::{FileId, FileLoader};
 use pipec_span::Span;
 use std::path::PathBuf;
@@ -182,13 +182,7 @@ impl<'this> ASTGenerator<'this> {
     pub(crate) fn consume_module_keyword(&mut self) -> ASTNode {
         self.advance_stream();
         self.consume_whitespace();
-        let mod_path = match self.advance_stream() {
-            Some(Token::Ident(v)) => v.to_owned(),
-            _ => {
-                //todo : compiler error
-                unreachable!()
-            }
-        };
+        let mod_path = self.must_ident();
         self.consume_whitespace();
         match self.peek_stream() {
             Some(Token::Semicolon) => self.consume_node_from_fs(mod_path),
@@ -308,16 +302,8 @@ impl<'this> ASTGenerator<'this> {
     #[inline]
     pub(crate) fn consume_component_declaration_block(&mut self) -> ComponentDeclarationBlock {
         self.consume_whitespace();
-        match self.advance_stream() {
-            Some(Token::LeftCurly) => {}
-            _v => {
-                //TODO : compiler error
-                unreachable!();
-            }
-        }
-        let contents = self.arena.alloc(AVec::new());
-        let contents_handle = self.arena.take(contents.clone());
-
+        self.must(Token::LeftCurly);
+        let mut contents = ADynList::new(self.arena);
         loop {
             self.consume_whitespace();
             let next = self.peek_stream();
@@ -325,7 +311,7 @@ impl<'this> ASTGenerator<'this> {
                 self.advance_stream();
                 break;
             }
-            contents_handle.push(self.consume_component_declaration_statement());
+            contents.push(self.consume_component_declaration_statement(), self.arena);
         }
 
         ComponentDeclarationBlock { contents }
@@ -400,12 +386,7 @@ impl<'this> ASTGenerator<'this> {
         &mut self,
     ) -> ComponentDeclarationBlockStatements {
         self.consume_whitespace();
-        let variablename = if let Some(Token::Ident(v)) = self.advance_stream() {
-            v
-        } else {
-            //TODO : compiler error
-            unreachable!();
-        };
+        let variablename = self.must_ident();
         self.consume_whitespace();
         let variabletype: Option<Path>;
         let declarationexpression: Option<Expression>;
@@ -442,8 +423,7 @@ impl<'this> ASTGenerator<'this> {
     #[inline]
     pub(crate) fn consume_function_block(&mut self) -> Block {
         self.must(Token::LeftCurly);
-        let block = self.arena.alloc(AVec::new());
-        let block_handle = self.arena.take(block.clone());
+        let mut block = ADynList::new(self.arena);
         loop {
             self.consume_whitespace();
             let next = self.peek_stream();
@@ -451,7 +431,7 @@ impl<'this> ASTGenerator<'this> {
                 self.advance_stream();
                 break;
             }
-            block_handle.push(self.consume_a_block_statement());
+            block.push(self.consume_a_block_statement(), self.arena);
         }
         Block(block)
     }
@@ -674,11 +654,9 @@ impl<'this> ASTGenerator<'this> {
     #[inline]
     pub(crate) fn consume_list_expression(&mut self) -> Expression {
         self.advance_stream();
-        let exprs = self.arena.alloc(AVec::new());
-        let exprs_handle = self.arena.take(exprs.clone());
+        let mut exprs = ADynList::new(self.arena);
         loop {
-            let expr = self.consume_an_expression();
-            exprs_handle.push(expr);
+            exprs.push(self.consume_an_expression(), self.arena);
 
             self.consume_whitespace();
 
@@ -721,10 +699,9 @@ impl<'this> ASTGenerator<'this> {
     #[inline]
     pub(crate) fn consume_tuple_expression(&mut self) -> Expression {
         self.advance_stream();
-        let values = self.arena.alloc(AVec::new());
-        let values_handle = self.arena.take(values.clone());
+        let mut values = ADynList::new(self.arena);
         loop {
-            values_handle.push(self.consume_an_expression());
+            values.push(self.consume_an_expression(), self.arena);
             self.consume_whitespace();
 
             let next = self.peek_stream();
@@ -822,8 +799,7 @@ impl<'this> ASTGenerator<'this> {
 
     #[inline]
     fn consume_a_path(&mut self) -> Path {
-        let out = self.arena.alloc(AVec::new());
-        let out_handle = self.arena.take(out.clone());
+        let mut out = ADynList::new(self.arena);
         loop {
             let next = self.peek_stream();
             match next {
@@ -831,7 +807,7 @@ impl<'this> ASTGenerator<'this> {
                     let name = *v;
                     self.advance_stream();
                     let param = self.consume_path_param();
-                    out_handle.push(PathNode { name, param });
+                    out.push(PathNode { name, param }, self.arena);
                     continue;
                 }
                 Some(Token::DoubleColon) => {
@@ -862,15 +838,14 @@ impl<'this> ASTGenerator<'this> {
     }
 
     #[inline]
-    pub(crate) fn consume_angle_params(&mut self) -> ASpan<AVec<Path, 100>> {
+    pub(crate) fn consume_angle_params(&mut self) -> ADynList<Path> {
         self.must(Token::LeftAngle);
-        let out = self.arena.alloc(AVec::new());
-        let out_handle = self.arena.take(out.clone());
+        let mut out = ADynList::new(self.arena);
         loop {
             self.consume_whitespace();
             match self.peek_stream() {
                 Some(Token::Ident(_)) => {
-                    out_handle.push(self.consume_a_path());
+                    out.push(self.consume_a_path(), self.arena);
                     self.consume_whitespace();
                     match self.peek_stream() {
                         Some(Token::Comma) => {
@@ -907,18 +882,18 @@ impl<'this> ASTGenerator<'this> {
 }
 #[derive(Clone, Debug)]
 #[allow(unused)]
-pub struct Path(pub ASpan<AVec<PathNode, 20>>);
+pub struct Path(pub ADynList<PathNode>);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PathNode {
     pub name: Span,
     pub param: Option<FunctionNodeParams>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum FunctionNodeParams {
-    Tuple(ASpan<AVec<Expression, 100>>),
-    Angles(ASpan<AVec<Path, 100>>),
+    Tuple(ADynList<Expression>),
+    Angles(ADynList<Path>),
 }
 
 #[derive(Debug, Clone)]
@@ -956,10 +931,10 @@ pub enum ASTNode {
 #[derive(Debug, Clone)]
 #[allow(unused)]
 pub struct ComponentDeclarationBlock {
-    contents: ASpan<AVec<ComponentDeclarationBlockStatements, 300>>,
+    contents: ADynList<ComponentDeclarationBlockStatements>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ComponentDeclarationBlockStatements {
     FinalVariableDeclaration {
         variablename: Span,
@@ -978,26 +953,26 @@ pub enum ComponentDeclarationBlockStatements {
     },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(unused)]
 pub struct RenderBlock {
     vertices_block: VerticesBlock,
     fragments_block: FragmentsBlock,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(unused)]
 pub struct VerticesBlock {
     block: Block,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(unused)]
 pub struct FragmentsBlock {
     block: Block,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum FunctionBlockStatements {
     VariableDeclaration {
         variablename: Span,
@@ -1022,7 +997,7 @@ pub enum Exported {
     Custom(Span),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expression {
     NumberExpression {
         value: Span,
@@ -1032,10 +1007,10 @@ pub enum Expression {
         value: Path,
     },
     TupleExpression {
-        values: ASpan<AVec<Self, 100>>,
+        values: ADynList<Self>,
     },
     ListExpression {
-        values: ASpan<AVec<Self, 50>>,
+        values: ADynList<Self>,
     },
     UnaryOpExpression {
         optype: UnaryOpType,
@@ -1070,7 +1045,7 @@ pub enum VariableType {
 
 #[derive(Debug, Clone)]
 #[allow(unused)]
-pub struct Block(ASpan<AVec<FunctionBlockStatements, 10000>>);
+pub struct Block(ADynList<FunctionBlockStatements>);
 
 #[derive(Debug, Clone)]
 #[allow(unused)]
