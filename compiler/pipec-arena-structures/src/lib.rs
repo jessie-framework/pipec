@@ -2,5 +2,5 @@ mod astring;
 pub use astring::{AString, AStringError};
 mod avec;
 pub use avec::{AVec, AVecError};
-mod alinkedlist;
-pub use alinkedlist::ALinkedList;
+mod adynlist;
+pub use adynlist::{ADynList, ADynListIter, ListNode};
