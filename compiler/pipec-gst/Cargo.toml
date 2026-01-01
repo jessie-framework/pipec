@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 pipec-arena = { version = "0.1.0", path = "../pipec-arena" }
+pipec-arena-structures = { version = "0.1.0", path = "../pipec-arena-structures" }
 pipec-ast = { version = "0.1.0", path = "../pipec-ast" }
 pipec-file-loader = { version = "0.1.0", path = "../pipec-file-loader" }
 pipec-span = { version = "0.1.0", path = "../pipec-span" }
