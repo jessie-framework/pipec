@@ -1,27 +1,26 @@
+use pipec_arena::{ASlice, Arena};
 use std::fs::File;
-use std::io::Read;
 use std::path::PathBuf;
 
 /// This struct is for loading files into the memory, ensuring every Span points to correct memory.
 pub struct FileLoader {
-    store: Vec<String>,
+    store: Vec<ASlice<String>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FileId(usize);
 
 impl FileLoader {
-    pub fn open(&mut self, input: &PathBuf) -> std::io::Result<FileId> {
+    pub fn open(&mut self, input: &PathBuf, arena: &mut Arena) -> std::io::Result<FileId> {
         let id = self.store.len();
-        let mut src = String::with_capacity(10000);
-        let mut file = File::open(input)?;
-        file.read_to_string(&mut src)?;
+        let file = File::open(input)?;
+        let src = arena.slice_from_read(file)?;
         self.store.push(src);
         Ok(FileId(id))
     }
 
-    pub fn load(&mut self, input: FileId) -> String {
-        self.store[input.0].clone()
+    pub fn load(&mut self, input: FileId) -> ASlice<String> {
+        self.store[input.0]
     }
 }
 

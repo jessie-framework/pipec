@@ -219,12 +219,15 @@ impl<'this> ASTGenerator<'this> {
         self.advance_stream();
         let path1 = {
             let mut cloned = self.path.clone();
-            cloned.push(format!("{}/mod.pipec", mod_path.parse(&src)));
+            cloned.push(format!(
+                "{}/mod.pipec",
+                mod_path.parse_arena(src, self.arena)
+            ));
             cloned
         };
         let path2 = {
             let mut cloned = self.path.clone();
-            cloned.push(format!("{}.pipec", mod_path.parse(&src)));
+            cloned.push(format!("{}.pipec", mod_path.parse_arena(src, self.arena)));
             cloned
         };
 
@@ -240,10 +243,11 @@ impl<'this> ASTGenerator<'this> {
             unreachable!();
         }
         if path1.exists() {
-            let file_id = self.loader.open(&path1).unwrap();
+            let file_id = self.loader.open(&path1, self.arena).unwrap();
             let file_contents = self.loader.load(file_id);
+            let src = self.arena.take_str_slice(file_contents);
 
-            let mut tokentree = Tokenizer::new(&file_contents).tree();
+            let mut tokentree = Tokenizer::new(src).tree();
 
             let ast_generator = ASTGenerator::new(
                 file_id,
@@ -261,10 +265,11 @@ impl<'this> ASTGenerator<'this> {
         }
 
         if path2.exists() {
-            let file_id = self.loader.open(&path2).unwrap();
+            let file_id = self.loader.open(&path2, self.arena).unwrap();
             let file_contents = self.loader.load(file_id);
+            let src = self.arena.take_str_slice(file_contents);
 
-            let mut tokentree = Tokenizer::new(&file_contents).tree();
+            let mut tokentree = Tokenizer::new(src).tree();
 
             let ast_generator = ASTGenerator::new(
                 file_id,
@@ -467,7 +472,7 @@ impl<'this> ASTGenerator<'this> {
         self.consume_whitespace();
         let exporting: Exported = match self.advance_stream() {
             Some(Token::Hash) => match self.advance_stream() {
-                Some(Token::Ident(name)) => match name.parse(&src) {
+                Some(Token::Ident(name)) => match name.parse_arena(src, self.arena) {
                     "col" => Exported::ColorBuiltin,
                     "pos" => Exported::PositionBuiltin,
                     _ => {

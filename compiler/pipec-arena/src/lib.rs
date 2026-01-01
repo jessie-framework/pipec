@@ -51,7 +51,11 @@ impl<T> ASlice<T> {
         self.len() == 0
     }
 
-    fn new(start: usize, end: usize) -> Self {
+    /// Creates a new ASlice<T> from raw parts.
+    ///
+    /// # Safety
+    /// The returned slice may point to illegal memory.
+    pub unsafe fn from_raw_parts(start: usize, end: usize) -> Self {
         Self {
             _marker: PhantomData,
             start,
@@ -127,27 +131,27 @@ impl Arena {
     }
 
     /// Takes an ASpan<T> and turns it into a &mut T.
-    pub fn take<'b, T>(&mut self, input: ASpan<T>) -> &'b mut T {
+    pub fn take<'b, T>(&self, input: ASpan<T>) -> &'b mut T {
         unsafe {
-            let ptr = self.data.as_mut_ptr().add(input.val) as *mut T;
+            let ptr = self.data.as_ptr().add(input.val) as *mut T;
             &mut *ptr
         }
     }
 
     /// Takes an ASlice<&[u8]> and turns it into a &mut [u8].
-    pub fn take_slice<'b>(&mut self, input: ASlice<&[u8]>) -> &'b mut [u8] {
+    pub fn take_slice<'b>(&self, input: ASlice<&[u8]>) -> &'b mut [u8] {
         unsafe {
-            let ptr = self.data.as_mut_ptr().add(input.start) as *mut u8;
+            let ptr = self.data.as_ptr().add(input.start) as *mut u8;
 
             let slice = slice::from_raw_parts_mut(ptr, input.len());
             slice as &mut [u8]
         }
     }
 
-    /// Takes an ASlice<&str> and turns it into a &mut str.
-    pub fn take_str_slice<'b>(&mut self, input: ASlice<&str>) -> &'b str {
+    /// Takes an ASlice<String> and turns it into a &mut str.
+    pub fn take_str_slice<'b>(&self, input: ASlice<String>) -> &'b str {
         unsafe {
-            let ptr = self.data.as_mut_ptr().add(input.start) as *mut u8;
+            let ptr = self.data.as_ptr().add(input.start) as *mut u8;
 
             let slice = slice::from_raw_parts_mut(ptr, input.len());
             str::from_utf8_unchecked_mut(slice)
@@ -164,7 +168,7 @@ impl Arena {
             self.alloc_byte(byte);
             end += 1;
         }
-        Ok(ASlice::new(start, end))
+        Ok(unsafe { ASlice::from_raw_parts(start, end) })
     }
 
     /// Allocates T in the arena and returns an ASpan<T>
@@ -196,6 +200,16 @@ impl Arena {
     #[inline]
     fn padding<T>(&mut self) -> usize {
         (align_of::<T>() - (self.bump % align_of::<T>())) % align_of::<T>()
+    }
+
+    #[inline]
+    pub fn capacity(&self) -> usize {
+        self.capacity
+    }
+
+    #[inline]
+    pub fn index(&self) -> usize {
+        self.bump
     }
 }
 
