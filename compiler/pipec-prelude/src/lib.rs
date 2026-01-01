@@ -9,12 +9,13 @@ pub fn run_compiler() {
     let args = Args::parse();
     println!("{:#?}", &args.file);
 
-    let mut loader = FileLoader::default();
-    let file_id = loader.open(&args.file).unwrap();
-    let file_contents = loader.load(file_id);
-
-    let mut tokentree = Tokenizer::new(&file_contents).tree();
     let mut arena = Arena::new(Size::Gigs(1));
+    let mut loader = FileLoader::default();
+    let file_id = loader.open(&args.file, &mut arena).unwrap();
+    let file_contents_slice = loader.load(file_id);
+    let file_source = arena.take_str_slice(file_contents_slice);
+
+    let mut tokentree = Tokenizer::new(file_source).tree();
     let mut guard = RecursiveGuard::default();
 
     let ast_generator = ASTGenerator::new(

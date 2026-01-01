@@ -15,7 +15,7 @@ pub struct ADynList<T> {
 
 pub struct ADynListIter<'a, T> {
     current: ASpan<ListNode<T>>,
-    arena: &'a mut Arena,
+    arena: &'a Arena,
 }
 
 impl<'a, T> Iterator for ADynListIter<'a, T>
@@ -51,7 +51,7 @@ impl<T> ADynList<T> {
     pub fn first(&self, arena: &mut Arena) -> &mut ListNode<T> {
         arena.take(self.first.clone())
     }
-    pub fn iter<'a>(&'a self, arena: &'a mut Arena) -> ADynListIter<'a, T> {
+    pub fn iter<'a>(&'a self, arena: &'a Arena) -> ADynListIter<'a, T> {
         ADynListIter {
             current: self.first.clone(),
             arena,

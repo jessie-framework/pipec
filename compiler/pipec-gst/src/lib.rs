@@ -1,4 +1,4 @@
-use pipec_arena::Arena;
+use pipec_arena::{ASlice, Arena};
 use pipec_arena_structures::ListNode;
 use pipec_ast::ast::ASTNode;
 use pipec_ast::ast::FunctionDeclarationParameters;
@@ -14,7 +14,7 @@ pub struct GlobalSymbolTree<'this> {
     arena: &'this mut Arena,
     pub map: HashMap<SymbolName, Symbol>,
     context: SymbolName,
-    src: String,
+    src: ASlice<String>,
 }
 
 impl<'this> GlobalSymbolTree<'this> {
@@ -27,7 +27,7 @@ impl<'this> GlobalSymbolTree<'this> {
             arena,
             loader,
             map,
-            src: src.to_string(),
+            src,
             context,
         }
     }
@@ -83,7 +83,7 @@ impl<'this> GlobalSymbolTree<'this> {
             return_type,
         };
         let mut cloned = self.context.clone();
-        let name = name.parse(&self.src).to_string();
+        let name = name.parse_arena(self.src, self.arena).to_string();
         cloned.path.push(name);
 
         self.map.insert(cloned, symbol);
@@ -97,15 +97,15 @@ impl<'this> GlobalSymbolTree<'this> {
         let params = self.ast_to_gst_params(params);
         let symbol = Symbol::Viewport { params };
         let mut cloned = self.context.clone();
-        let name = name.parse(&self.src).to_string();
+        let name = name.parse_arena(self.src, self.arena).to_string();
         cloned.path.push(name);
 
         self.map.insert(cloned, symbol);
     }
 
     pub(crate) fn parse_mod_statement(&mut self, name: Span, mut tree: ASTTree) {
-        let name = name.parse(&self.src).to_string();
-        let old_src = self.src.clone();
+        let name = name.parse_arena(self.src, self.arena).to_string();
+        let old_src = self.src;
         let old_context = self.context.clone();
         let mut mod_context = self.context.clone();
         mod_context.path.push(name);
@@ -130,7 +130,7 @@ impl<'this> GlobalSymbolTree<'this> {
             match first {
                 ListNode::Empty => {}
                 ListNode::Node(val, _) => {
-                    let name = val.name.parse(&self.src);
+                    let name = val.name.parse_arena(self.src, self.arena);
                     match name {
                         "i8" => return I8,
                         "u8" => return U8,
@@ -161,7 +161,7 @@ impl<'this> GlobalSymbolTree<'this> {
         let avec = self.arena.take(input.0);
         let mut out = FunctionParameters(Vec::new());
         for i in avec.iter() {
-            let name = i.name.parse(&self.src).to_string();
+            let name = i.name.parse_arena(self.src, self.arena).to_string();
             let p_type = self.type_from_path(&i.arg_type);
             out.0.push((name, p_type));
         }
@@ -172,7 +172,7 @@ impl<'this> GlobalSymbolTree<'this> {
         let vec = input.0.clone();
         let mut out = SymbolName::default();
         for i in vec.iter(self.arena) {
-            let name = i.name.parse(&self.src).to_string();
+            let name = i.name.parse_arena(self.src, self.arena).to_string();
             out.path.push(name);
         }
         out

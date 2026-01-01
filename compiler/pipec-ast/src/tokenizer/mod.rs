@@ -372,13 +372,13 @@ impl<'chars> Tokenizer<'chars> {
         }
         out.end(&self.stream);
 
-        self.match_for_keywords(out)
+        self.ident_or_keyword(out)
     }
 
     #[inline]
-    pub(crate) fn match_for_keywords(&mut self, input: Span) -> Token {
+    pub(crate) fn ident_or_keyword(&self, input: Span) -> Token {
         use Token::*;
-        match input.parse(self.src) {
+        match input.parse_str(self.src) {
             "using" => UsingKeyword,
             "let" => LetKeyword,
             "viewport" => ViewportKeyword,
@@ -393,7 +393,7 @@ impl<'chars> Tokenizer<'chars> {
             "module" => ModuleKeyword,
             "mutable" => MutableKeyword,
             "function" => FunctionKeyword,
-            _ => Ident(input),
+            _ => Token::Ident(input),
         }
     }
 

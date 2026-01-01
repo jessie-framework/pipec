@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+use pipec_arena::{ASlice, Arena};
 use putbackpeekmore::PutBackPeekMore;
 use std::str::Chars;
 
@@ -11,7 +12,12 @@ pub struct Span {
 }
 
 impl Span {
-    pub fn parse<'b>(&self, input: &'b str) -> &'b str {
+    pub fn parse_arena<'b>(&self, input: ASlice<String>, arena: &Arena) -> &'b str {
+        let parsed = arena.take_str_slice(input);
+        &parsed[self.begin..self.end]
+    }
+
+    pub fn parse_str<'b>(&self, input: &'b str) -> &'b str {
         &input[self.begin..self.end]
     }
     pub fn end<'a>(&mut self, input: &SpannedIterator<'a>) {
@@ -28,10 +34,8 @@ pub struct SpannedIterator<'a> {
 
 impl<'a> SpannedIterator<'a> {
     pub fn new(input: &'a str) -> Self {
-        Self {
-            chars: PutBackPeekMore::new(input.chars()),
-            index: 0,
-        }
+        let chars = PutBackPeekMore::new(input.chars());
+        Self { chars, index: 0 }
     }
     // This function is for the Iterator implementation.
     fn next_char(&mut self) -> Option<char> {

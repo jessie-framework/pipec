@@ -173,6 +173,9 @@ version = "0.1.0"
 [[package]]
 name = "pipec-file-loader"
 version = "0.1.0"
+dependencies = [
+ "pipec-arena",
+]
 
 [[package]]
 name = "pipec-gst"
@@ -216,6 +219,7 @@ dependencies = [
 name = "pipec-span"
 version = "0.1.0"
 dependencies = [
+ "pipec-arena",
  "putbackpeekmore",
 ]
 
