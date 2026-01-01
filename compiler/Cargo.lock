@@ -143,6 +143,9 @@ version = "0.1.0"
 [[package]]
 name = "pipec-arena-structures"
 version = "0.1.0"
+dependencies = [
+ "pipec-arena",
+]
 
 [[package]]
 name = "pipec-args"
