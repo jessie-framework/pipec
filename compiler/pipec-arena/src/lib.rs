@@ -4,8 +4,10 @@ use core::ptr;
 use core::ptr::copy_nonoverlapping;
 use core::slice;
 use std::{
+    io::{BufReader, Read},
     marker::PhantomData,
     mem::{align_of, size_of},
+    ops::Range,
 };
 
 /// An arena allocator made to be used by the compiler.
@@ -13,6 +15,49 @@ pub struct Arena {
     data: Box<[MaybeUninit<u8>]>,
     capacity: usize,
     bump: usize,
+}
+
+/// An "owned pointer" for a slice in the arena.
+#[derive(Debug)]
+pub struct ASlice<T> {
+    _marker: PhantomData<T>,
+    pub(crate) start: usize,
+    pub(crate) end: usize,
+}
+
+impl<T> Clone for ASlice<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for ASlice<T> {}
+impl<T> ASlice<T> {
+    pub fn slice(&self, index: Range<usize>) -> Self {
+        let start = self.start + index.start;
+        let end = self.end + index.end;
+        Self {
+            _marker: PhantomData,
+            start,
+            end,
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.end - self.start
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    fn new(start: usize, end: usize) -> Self {
+        Self {
+            _marker: PhantomData,
+            start,
+            end,
+        }
+    }
 }
 
 /// An "owned pointer" the arena returns after you do an allocation with it.
@@ -89,6 +134,39 @@ impl Arena {
         }
     }
 
+    /// Takes an ASlice<&[u8]> and turns it into a &mut [u8].
+    pub fn take_slice<'b>(&mut self, input: ASlice<&[u8]>) -> &'b mut [u8] {
+        unsafe {
+            let ptr = self.data.as_mut_ptr().add(input.start) as *mut u8;
+
+            let slice = slice::from_raw_parts_mut(ptr, input.len());
+            slice as &mut [u8]
+        }
+    }
+
+    /// Takes an ASlice<&str> and turns it into a &mut str.
+    pub fn take_str_slice<'b>(&mut self, input: ASlice<&str>) -> &'b str {
+        unsafe {
+            let ptr = self.data.as_mut_ptr().add(input.start) as *mut u8;
+
+            let slice = slice::from_raw_parts_mut(ptr, input.len());
+            str::from_utf8_unchecked_mut(slice)
+        }
+    }
+
+    /// Takes an implementator of the Read trait as input and allocates it in the arena.
+    pub fn slice_from_read<O>(&mut self, input: impl Read) -> Result<ASlice<O>, std::io::Error> {
+        let start = self.bump;
+        let mut end = self.bump;
+        let reader = BufReader::new(input);
+        for byte in reader.bytes() {
+            let byte = byte?;
+            self.alloc_byte(byte);
+            end += 1;
+        }
+        Ok(ASlice::new(start, end))
+    }
+
     /// Allocates T in the arena and returns an ASpan<T>
     #[inline]
     pub fn alloc<T>(&mut self, input: T) -> ASpan<T> {
@@ -102,6 +180,16 @@ impl Arena {
             let out = ASpan::new(self.bump + self.padding::<T>());
             self.bump += size_of::<T>() + self.padding::<T>();
             out
+        }
+    }
+
+    /// Allocates a byte in the arena and ignores the result.
+    #[inline]
+    pub(crate) fn alloc_byte(&mut self, input: u8) {
+        unsafe {
+            let ptr = self.data.as_mut_ptr().add(self.bump) as *mut u8;
+            ptr::write(ptr, input);
+            self.bump += 1;
         }
     }
 
