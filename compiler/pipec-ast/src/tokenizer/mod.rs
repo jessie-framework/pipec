@@ -62,7 +62,10 @@ impl<'chars> Tokenizer<'chars> {
                 '&' => self.consume_ampersand(),
                 '+' => self.consume_plus(),
                 '-' => self.consume_minus(),
-                '/' => self.consume_slash(),
+                '/' => match self.consume_slash() {
+                    Some(v) => v,
+                    None => self.consume_next_token(),
+                },
                 '*' => self.consume_asterisk(),
                 '!' => self.consume_exclamation_mark(),
                 '?' => self.consume_question_mark(),
@@ -137,6 +140,10 @@ impl<'chars> Tokenizer<'chars> {
     #[inline]
     pub(crate) fn consume_plus(&mut self) -> Token {
         self.advance_stream();
+        if self.peek_stream() == &Some('=') {
+            self.advance_stream();
+            return Token::PlusEqual;
+        }
         Token::Plus
     }
     #[inline]
@@ -146,11 +153,19 @@ impl<'chars> Tokenizer<'chars> {
             self.advance_stream();
             return Token::ThinArrow;
         }
+        if self.peek_stream() == &Some('=') {
+            self.advance_stream();
+            return Token::MinusEqual;
+        }
         Token::Minus
     }
     #[inline]
     pub(crate) fn consume_asterisk(&mut self) -> Token {
         self.advance_stream();
+        if self.peek_stream() == &Some('=') {
+            self.advance_stream();
+            return Token::AsteriskEqual;
+        }
         Token::Asterisk
     }
     #[inline]
@@ -231,6 +246,10 @@ impl<'chars> Tokenizer<'chars> {
             self.advance_stream();
             return Token::EqualTo;
         }
+        if self.peek_stream() == &Some('>') {
+            self.advance_stream();
+            return Token::FatArrow;
+        }
         Token::EqualSign
     }
     #[inline]
@@ -306,8 +325,14 @@ impl<'chars> Tokenizer<'chars> {
                 continue;
             }
             if peek == &Some('.') {
-                self.advance_stream();
-                digittype = DigitType::Float;
+                match digittype {
+                    DigitType::Float => break,
+                    DigitType::Int => {
+                        self.advance_stream();
+                        digittype = DigitType::Float;
+                        continue;
+                    }
+                }
             }
             break;
         }
@@ -319,9 +344,24 @@ impl<'chars> Tokenizer<'chars> {
     }
 
     #[inline]
-    pub(crate) fn consume_slash(&mut self) -> Token {
+    pub(crate) fn consume_slash(&mut self) -> Option<Token> {
         self.advance_stream();
-        Token::Slash
+        match self.peek_stream() {
+            Some('/') => {
+                self.consume_single_line_comment();
+                return None;
+            }
+            Some('*') => {
+                self.consume_multi_line_comment();
+                return None;
+            }
+            Some('=') => {
+                self.advance_stream();
+                return Some(Token::SlashEqual);
+            }
+            _ => {}
+        }
+        Some(Token::Slash)
     }
     #[inline]
     pub(crate) fn consume_hash(&mut self) -> Token {
@@ -380,7 +420,6 @@ impl<'chars> Tokenizer<'chars> {
         use Token::*;
         match input.parse_str(self.src) {
             "using" => UsingKeyword,
-            "let" => LetKeyword,
             "viewport" => ViewportKeyword,
             "component" => ComponentKeyword,
             "final" => FinalKeyword,
@@ -393,6 +432,8 @@ impl<'chars> Tokenizer<'chars> {
             "module" => ModuleKeyword,
             "mutable" => MutableKeyword,
             "function" => FunctionKeyword,
+            "immutable" => ImmutableKeyword,
+            "switch" => SwitchKeyword,
             _ => Token::Ident(input),
         }
     }
@@ -420,6 +461,8 @@ pub enum Token {
     Or,
     /// ->
     ThinArrow,
+    /// =>
+    FatArrow,
     /// @
     AtSign,
     /// =
@@ -446,6 +489,16 @@ pub enum Token {
     Ampersand,
     /// %
     Modulo,
+    /// +=
+    PlusEqual,
+    /// -=
+    MinusEqual,
+    /// *=
+    AsteriskEqual,
+    /// /=
+    SlashEqual,
+    /// /=
+    ModEqual,
     /// !
     ExclamationMark,
     /// ?
@@ -478,8 +531,6 @@ pub enum Token {
     Whitespace,
     /// using
     UsingKeyword,
-    /// let
-    LetKeyword,
     /// viewport
     ViewportKeyword,
     /// component
@@ -502,8 +553,12 @@ pub enum Token {
     ModuleKeyword,
     /// mutable
     MutableKeyword,
+    /// immutable
+    ImmutableKeyword,
     /// function
     FunctionKeyword,
+    /// switch
+    SwitchKeyword,
     /// 21213
     Digit { val: Span, digittype: DigitType },
     /// things_like_this or this_2

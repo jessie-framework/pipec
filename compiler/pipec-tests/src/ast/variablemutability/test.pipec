@@ -1,4 +1,4 @@
 function main() {
-	let x = 0;
-	let mutable x = 0;
+	immutable x = 0;
+	mutable x = 0;
 }

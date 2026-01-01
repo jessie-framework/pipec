@@ -60,6 +60,7 @@ impl<'this> ASTGenerator<'this> {
 
     #[inline]
     pub(crate) fn advance_stream(&mut self) -> Option<Token> {
+        println!("{:#?}", self.peek_stream());
         self.tokens.next_token()
     }
     #[inline]
@@ -76,12 +77,21 @@ impl<'this> ASTGenerator<'this> {
                 Token::ComponentKeyword => self.consume_component_keyword(),
                 Token::ViewportKeyword => self.consume_viewport_keyword(),
                 Token::FunctionKeyword => self.consume_function_keyword(),
+                Token::PublicKeyword => self.consume_public_keyword(),
                 _v => {
+                    println!("{_v:#?}");
                     todo!();
                 }
             },
             None => ASTNode::EOF,
         }
+    }
+
+    #[inline]
+    pub(crate) fn consume_public_keyword(&mut self) -> ASTNode {
+        self.advance_stream();
+        let val = self.parse_value();
+        ASTNode::Public(self.arena.alloc(val))
     }
 
     #[inline]
@@ -93,7 +103,7 @@ impl<'this> ASTGenerator<'this> {
         let params = self.consume_function_parameters();
         self.consume_whitespace();
         let mut out_type = None;
-        if self.next_is(Token::ThinArrow) {
+        if self.next_is(Token::FatArrow) {
             self.advance_stream();
             self.consume_whitespace();
             out_type = Some(self.consume_a_path());
@@ -172,6 +182,7 @@ impl<'this> ASTGenerator<'this> {
 
     #[inline]
     pub(crate) fn must(&mut self, val: Token) {
+        println!("should have {:#?}", self.peek_stream());
         if self.advance_stream() != Some(val) {
             // TODO : compiler error
             unreachable!()
@@ -328,8 +339,7 @@ impl<'this> ASTGenerator<'this> {
     ) -> ComponentDeclarationBlockStatements {
         match self.advance_stream() {
             Some(Token::FinalKeyword) => self.consume_final_variable_declaration(),
-            Some(Token::RenderKeyword) => self.consume_render_block(),
-            Some(Token::PublicKeyword) => self.consume_public_constructor(),
+            Some(Token::RenderKeyword) => self.consume_component_render_block(),
             _v => {
                 //TODO : compiler error
                 unreachable!();
@@ -338,23 +348,14 @@ impl<'this> ASTGenerator<'this> {
     }
 
     #[inline]
-    pub(crate) fn consume_public_constructor(&mut self) -> ComponentDeclarationBlockStatements {
+    pub(crate) fn consume_component_render_block(&mut self) -> ComponentDeclarationBlockStatements {
         self.consume_whitespace();
-        let expression = self.consume_an_expression();
-        self.consume_whitespace();
-        self.consume_a_semicolon();
-        ComponentDeclarationBlockStatements::PublicConstructor { expression }
-    }
-
-    #[inline]
-    pub(crate) fn consume_render_block(&mut self) -> ComponentDeclarationBlockStatements {
-        self.consume_whitespace();
-        let block = self.consume_render_block_inner();
+        let block = self.consume_component_render_block_inner();
         ComponentDeclarationBlockStatements::RenderBlockDeclaration { block }
     }
 
     #[inline]
-    pub(crate) fn consume_render_block_inner(&mut self) -> RenderBlock {
+    pub(crate) fn consume_component_render_block_inner(&mut self) -> RenderBlock {
         self.must(Token::LeftCurly);
         self.consume_whitespace();
         let vertices_block = self.consume_vertices_block();
@@ -446,8 +447,10 @@ impl<'this> ASTGenerator<'this> {
         self.consume_whitespace();
         match self.peek_stream() {
             Some(v) => match v {
-                Token::LetKeyword => self.consume_variable_declaration(),
+                Token::MutableKeyword => self.consume_mutable_variable_declaration(),
+                Token::ImmutableKeyword => self.consume_immutable_variable_declaration(),
                 Token::ExportKeyword => self.consume_export_declaration(),
+                Token::RenderKeyword => self.consume_render_block(),
                 _ => self.consume_expression_statement(),
             },
             None => {
@@ -456,13 +459,25 @@ impl<'this> ASTGenerator<'this> {
             }
         }
     }
+    #[inline]
+    pub(crate) fn consume_render_block(&mut self) -> FunctionBlockStatements {
+        self.advance_stream();
+        self.consume_whitespace();
+        FunctionBlockStatements::RenderBlock {
+            block: self.consume_function_block(),
+        }
+    }
 
     #[inline]
     pub(crate) fn consume_expression_statement(&mut self) -> FunctionBlockStatements {
         let expression = self.consume_an_expression();
         self.consume_whitespace();
-        self.consume_a_semicolon();
-        FunctionBlockStatements::ExpressionStatement { expression }
+        let mut hidden = false;
+        if self.next_is(Token::Semicolon) {
+            hidden = true;
+            self.advance_stream();
+        }
+        FunctionBlockStatements::ExpressionStatement { expression, hidden }
     }
 
     #[inline]
@@ -533,33 +548,13 @@ impl<'this> ASTGenerator<'this> {
     }
 
     #[inline]
-    pub(crate) fn consume_variable_declaration(&mut self) -> FunctionBlockStatements {
+    pub(crate) fn consume_mutable_variable_declaration(&mut self) -> FunctionBlockStatements {
         self.advance_stream();
-        // let x : u32 = 0;
+        // mutable x : u32 = 0;
         self.consume_whitespace();
-        let varname: Span;
+        let varname = self.must_ident();
         let vartype: Option<Path>;
         let declexpr: Option<Expression>;
-        let mut is_mutable = false;
-        match self.advance_stream() {
-            Some(Token::Ident(variable_name)) => {
-                varname = variable_name;
-            }
-            Some(Token::MutableKeyword) => {
-                is_mutable = true;
-                self.consume_whitespace();
-                if let Some(Token::Ident(variable_name)) = self.advance_stream() {
-                    varname = variable_name;
-                } else {
-                    //TODO : compiler error
-                    unreachable!()
-                }
-            }
-            _ => {
-                //TODO: compiler error
-                unreachable!()
-            }
-        }
         self.consume_whitespace();
         match self.advance_stream() {
             Some(Token::Colon) => {
@@ -591,11 +586,56 @@ impl<'this> ASTGenerator<'this> {
         self.consume_whitespace();
         self.consume_a_semicolon();
 
-        FunctionBlockStatements::VariableDeclaration {
+        FunctionBlockStatements::MutableVariableDeclaration {
             variablename: varname,
             variabletype: vartype,
             declarationexpression: declexpr,
-            is_mutable,
+        }
+        // TODO : update this function
+    }
+    #[inline]
+    pub(crate) fn consume_immutable_variable_declaration(&mut self) -> FunctionBlockStatements {
+        self.advance_stream();
+        // mutable x : u32 = 0;
+        self.consume_whitespace();
+        let varname = self.must_ident();
+        let vartype: Option<Path>;
+        let declexpr: Option<Expression>;
+        self.consume_whitespace();
+        match self.advance_stream() {
+            Some(Token::Colon) => {
+                self.consume_whitespace();
+                vartype = Some(self.consume_a_path());
+                self.consume_whitespace();
+                match self.advance_stream() {
+                    Some(Token::EqualSign) => {
+                        declexpr = Some(self.consume_an_expression());
+                    }
+                    _anything_else => {
+                        //TODO : compiler error
+                        unreachable!();
+                    }
+                }
+            }
+
+            Some(Token::EqualSign) => {
+                self.consume_whitespace();
+                declexpr = Some(self.consume_an_expression());
+                vartype = None;
+            }
+
+            _ => {
+                //TODO : compiler error
+                unreachable!()
+            }
+        }
+        self.consume_whitespace();
+        self.consume_a_semicolon();
+
+        FunctionBlockStatements::ImmutableVariableDeclaration {
+            variablename: varname,
+            variabletype: vartype,
+            declarationexpression: declexpr,
         }
         // TODO : update this function
     }
@@ -614,7 +654,7 @@ impl<'this> ASTGenerator<'this> {
     #[inline]
     pub(crate) fn consume_an_expression(&mut self) -> Expression {
         self.consume_whitespace();
-        match self.peek_stream() {
+        let out = match self.peek_stream() {
             Some(Token::Digit { .. }) => self.consume_number_expression(),
             Some(Token::String(_)) => self.consume_string_expression(),
             Some(Token::LeftParenthesis) => self.consume_tuple_expression(),
@@ -622,12 +662,88 @@ impl<'this> ASTGenerator<'this> {
             Some(Token::Tilde) => self.consume_tilde_expression(),
             Some(Token::Ident(_)) => self.consume_path_expression(),
             Some(Token::RequiredKeyword) => self.consume_required_expression(),
+            Some(Token::SwitchKeyword) => self.consume_switch_expression(),
 
             _v => {
+                println!("{_v:#?}");
                 //TODO : compiler error
                 unreachable!();
             }
+        };
+        self.check_expression_rhs(out)
+    }
+
+    #[inline]
+    pub(crate) fn check_expression_rhs(&mut self, input: Expression) -> Expression {
+        self.consume_whitespace();
+        let exprtype = match self.peek_stream() {
+            Some(Token::Plus) => Some(BinaryOpType::Add),
+            Some(Token::Minus) => Some(BinaryOpType::Subtract),
+            Some(Token::Asterisk) => Some(BinaryOpType::Multiply),
+            Some(Token::Slash) => Some(BinaryOpType::Divide),
+            Some(Token::PlusEqual) => Some(BinaryOpType::AddEqual),
+            Some(Token::MinusEqual) => Some(BinaryOpType::SubtractEqual),
+            Some(Token::AsteriskEqual) => Some(BinaryOpType::MultiplyEqual),
+            Some(Token::SlashEqual) => Some(BinaryOpType::DivideEqual),
+            Some(Token::ModEqual) => Some(BinaryOpType::ModEqual),
+            _ => None,
+        };
+        if let Some(v) = exprtype {
+            self.advance_stream();
+            let rhs_expr = self.consume_an_expression();
+
+            return Expression::BinaryOpExpression {
+                optype: v,
+                lhs: self.arena.alloc(input),
+                rhs: self.arena.alloc(rhs_expr),
+            };
         }
+        input
+    }
+
+    #[inline]
+    pub(crate) fn consume_switch_expression(&mut self) -> Expression {
+        self.advance_stream();
+        self.consume_whitespace();
+        let expression = self.consume_an_expression();
+        let predicate = self.arena.alloc(expression);
+        Expression::SwitchExpression {
+            predicate,
+            block: self.consume_switch_block(),
+        }
+    }
+
+    #[inline]
+    pub(crate) fn consume_switch_block(&mut self) -> SwitchExpressionBlock {
+        self.consume_whitespace();
+        self.must(Token::LeftCurly);
+        let mut out = ADynList::new(self.arena);
+        loop {
+            self.consume_whitespace();
+            if self.next_is(Token::RightCurly) {
+                self.advance_stream();
+                break;
+            }
+            out.push(self.consume_switch_arm(), self.arena);
+            if self.next_is(Token::Comma) {
+                self.advance_stream();
+                continue;
+            }
+        }
+        SwitchExpressionBlock(out)
+    }
+
+    #[inline]
+    pub(crate) fn consume_switch_arm(&mut self) -> SwitchArm {
+        let expr = self.consume_an_expression();
+        println!("arm lhs = {expr:#?}");
+        let lhs = self.arena.alloc(expr);
+        self.consume_whitespace();
+        self.must(Token::ThinArrow);
+        self.consume_whitespace();
+        let expr = self.consume_an_expression();
+        let rhs = self.arena.alloc(expr);
+        SwitchArm { lhs, rhs }
     }
 
     #[inline]
@@ -694,11 +810,9 @@ impl<'this> ASTGenerator<'this> {
 
     #[inline]
     pub(crate) fn consume_string_expression(&mut self) -> Expression {
-        if let Some(Token::Ident(v)) = self.advance_stream() {
-            return Expression::StringExpression { value: v };
+        Expression::PathExpression {
+            value: self.consume_a_path(),
         }
-        //TODO : compiler error
-        unreachable!();
     }
 
     #[inline]
@@ -730,7 +844,7 @@ impl<'this> ASTGenerator<'this> {
     #[inline]
     pub(crate) fn consume_number_expression(&mut self) -> Expression {
         self.consume_whitespace();
-        let first = match self.advance_stream() {
+        match self.advance_stream() {
             Some(Token::Digit {
                 val: value,
                 digittype,
@@ -739,56 +853,6 @@ impl<'this> ASTGenerator<'this> {
                 //TODO : compile error
                 unreachable!()
             }
-        };
-        self.consume_whitespace();
-        match self.peek_stream() {
-            Some(Token::Plus) => {
-                self.advance_stream();
-                let expr = self.consume_an_expression();
-                Expression::UnaryOpExpression {
-                    optype: UnaryOpType::Add,
-                    lhs: self.arena.alloc(first),
-                    rhs: self.arena.alloc(expr),
-                }
-            }
-            Some(Token::Minus) => {
-                self.advance_stream();
-                let expr = self.consume_an_expression();
-                Expression::UnaryOpExpression {
-                    optype: UnaryOpType::Subtract,
-                    lhs: self.arena.alloc(first),
-                    rhs: self.arena.alloc(expr),
-                }
-            }
-            Some(Token::Asterisk) => {
-                self.advance_stream();
-                let expr = self.consume_an_expression();
-                Expression::UnaryOpExpression {
-                    optype: UnaryOpType::Multiply,
-                    lhs: self.arena.alloc(first),
-                    rhs: self.arena.alloc(expr),
-                }
-            }
-            Some(Token::Slash) => {
-                self.advance_stream();
-                let expr = self.consume_an_expression();
-                Expression::UnaryOpExpression {
-                    optype: UnaryOpType::Divide,
-                    lhs: self.arena.alloc(first),
-                    rhs: self.arena.alloc(expr),
-                }
-            }
-            Some(Token::Modulo) => {
-                self.advance_stream();
-                let expr = self.consume_an_expression();
-                Expression::UnaryOpExpression {
-                    optype: UnaryOpType::Mod,
-                    lhs: self.arena.alloc(first),
-                    rhs: self.arena.alloc(expr),
-                }
-            }
-
-            _v => first,
         }
     }
 
@@ -812,12 +876,32 @@ impl<'this> ASTGenerator<'this> {
                     let name = *v;
                     self.advance_stream();
                     let param = self.consume_path_param();
-                    out.push(PathNode { name, param }, self.arena);
+                    out.push(PathNode::Named { name, param }, self.arena);
                     continue;
                 }
-                Some(Token::DoubleColon) => {
+                Some(Token::Slash) => {
                     self.advance_stream();
                     continue;
+                }
+                Some(Token::LeftParenthesis) => {
+                    self.advance_stream();
+                    let mut vals = ADynList::new(self.arena);
+                    loop {
+                        self.consume_whitespace();
+                        match self.advance_stream() {
+                            Some(Token::Ident(v)) => {
+                                vals.push(v, self.arena);
+                                continue;
+                            }
+                            Some(Token::RightParenthesis) => {
+                                break;
+                            }
+                            Some(Token::Comma) => {
+                                continue;
+                            }
+                            _v => {}
+                        }
+                    }
                 }
                 _ => {
                     break;
@@ -839,6 +923,12 @@ impl<'this> ASTGenerator<'this> {
             }
             Some(Token::LeftAngle) => Some(FunctionNodeParams::Angles(self.consume_angle_params())),
             _v => None,
+        }
+    }
+    #[inline]
+    pub(crate) fn consume_whitespace(&mut self) {
+        while self.tokens.peek() == &Some(Token::Whitespace) {
+            self.tokens.next_token();
         }
     }
 
@@ -877,22 +967,19 @@ impl<'this> ASTGenerator<'this> {
         }
         out
     }
-
-    #[inline]
-    pub(crate) fn consume_whitespace(&mut self) {
-        while self.tokens.peek() == &Some(Token::Whitespace) {
-            self.tokens.next_token();
-        }
-    }
 }
+
 #[derive(Clone, Debug)]
 #[allow(unused)]
 pub struct Path(pub ADynList<PathNode>);
 
 #[derive(Debug, Clone)]
-pub struct PathNode {
-    pub name: Span,
-    pub param: Option<FunctionNodeParams>,
+pub enum PathNode {
+    Named {
+        name: Span,
+        param: Option<FunctionNodeParams>,
+    },
+    Tuple(ADynList<Span>),
 }
 
 #[derive(Debug, Clone)]
@@ -930,6 +1017,7 @@ pub enum ASTNode {
         name: Span,
         tree: ASTTree,
     },
+    Public(ASpan<Self>),
     EOF,
 }
 
@@ -979,19 +1067,27 @@ pub struct FragmentsBlock {
 
 #[derive(Debug, Clone)]
 pub enum FunctionBlockStatements {
-    VariableDeclaration {
+    MutableVariableDeclaration {
         variablename: Span,
         variabletype: Option<Path>,
         declarationexpression: Option<Expression>,
-        is_mutable: bool,
+    },
+    ImmutableVariableDeclaration {
+        variablename: Span,
+        variabletype: Option<Path>,
+        declarationexpression: Option<Expression>,
     },
     ExpressionStatement {
+        hidden: bool,
         expression: Expression,
     },
     ExportDeclaration {
         exporting: Exported,
         exporttype: Option<Path>,
         expression: Expression,
+    },
+    RenderBlock {
+        block: Block,
     },
 }
 
@@ -1017,8 +1113,8 @@ pub enum Expression {
     ListExpression {
         values: ADynList<Self>,
     },
-    UnaryOpExpression {
-        optype: UnaryOpType,
+    BinaryOpExpression {
+        optype: BinaryOpType,
         lhs: ASpan<Self>,
         rhs: ASpan<Self>,
     },
@@ -1028,18 +1124,35 @@ pub enum Expression {
     RequiredExpression {
         value: ASpan<Self>,
     },
-    StringExpression {
-        value: Span,
+    SwitchExpression {
+        predicate: ASpan<Self>,
+        block: SwitchExpressionBlock,
     },
 }
 
+#[derive(Debug, Clone)]
+#[allow(unused)]
+pub struct SwitchExpressionBlock(ADynList<SwitchArm>);
+
+#[derive(Debug, Clone)]
+#[allow(unused)]
+pub struct SwitchArm {
+    lhs: ASpan<Expression>,
+    rhs: ASpan<Expression>,
+}
+
 #[derive(Debug, PartialEq, Clone, Eq, Hash)]
-pub enum UnaryOpType {
+pub enum BinaryOpType {
     Add,
     Subtract,
     Multiply,
     Divide,
     Mod,
+    AddEqual,
+    SubtractEqual,
+    MultiplyEqual,
+    DivideEqual,
+    ModEqual,
 }
 
 #[derive(Debug)]
