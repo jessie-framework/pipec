@@ -179,6 +179,7 @@ name = "pipec-gst"
 version = "0.1.0"
 dependencies = [
  "pipec-arena",
+ "pipec-arena-structures",
  "pipec-ast",
  "pipec-file-loader",
  "pipec-span",
