@@ -5,7 +5,7 @@ use std::str::Chars;
 
 /// A span in a source later used to be read from using the function parse().
 /// The idea is to not store entire Strings inside tokens, but rather these less expensive structs for more performance.
-#[derive(Default, Clone, Copy, PartialEq, Debug)]
+#[derive(Default, Clone, Copy, PartialEq, Debug, Hash)]
 pub struct Span {
     pub begin: usize,
     pub end: usize,

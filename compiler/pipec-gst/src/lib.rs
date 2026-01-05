@@ -14,27 +14,28 @@ pub struct GlobalSymbolTree<'this> {
     ast: ASTTree,
     loader: &'this mut FileLoader,
     arena: &'this mut Arena,
-    pub map: HashMap<SymbolName, Symbol>,
-    context: SymbolName,
     src: ASlice<AStr>,
+}
+
+#[derive(Default, Debug)]
+pub struct ModuleScope<'a> {
+    symbols: HashMap<&'a str, Symbol>,
+    submodules: HashMap<&'a str, Self>,
 }
 
 impl<'this> GlobalSymbolTree<'this> {
     pub fn new(arena: &'this mut Arena, loader: &'this mut FileLoader, ast: ASTTree) -> Self {
-        let map = HashMap::new();
         let src = loader.load(ast.id);
-        let context = SymbolName::new();
         Self {
             ast,
             arena,
             loader,
-            map,
             src,
-            context,
         }
     }
 
-    pub fn generate(&mut self) {
+    pub fn generate<'a>(&mut self) -> ModuleScope<'a> {
+        let mut out = ModuleScope::default();
         loop {
             let next = self.ast.next_node(self.arena);
             match next {
@@ -42,28 +43,29 @@ impl<'this> GlobalSymbolTree<'this> {
                     ASTNode::EOF => {
                         break;
                     }
-                    _ => self.check_node(v.clone()),
+                    _ => self.check_node(v.clone(), &mut out),
                 },
                 None => break,
             }
         }
+        out
     }
 
-    pub(crate) fn check_node(&mut self, input: ASTNode) {
+    pub(crate) fn check_node(&mut self, input: ASTNode, scope: &mut ModuleScope) {
         match input {
             ASTNode::FunctionDeclaration {
                 name,
                 params,
                 block: _,
                 out_type,
-            } => self.parse_function_declaration(name, params, out_type),
+            } => self.parse_function_declaration(name, params, out_type, scope),
             ASTNode::ViewportDeclaration {
                 name,
                 params,
                 block: _,
-            } => self.parse_viewport_declaration(name, params),
+            } => self.parse_viewport_declaration(name, params, scope),
             ASTNode::ModStatement { name, tree } => {
-                self.parse_mod_statement(name, tree);
+                self.parse_mod_statement(name, tree, scope);
             }
             _ => {}
         }
@@ -74,55 +76,54 @@ impl<'this> GlobalSymbolTree<'this> {
         name: Span,
         params: FunctionDeclarationParameters,
         out_type: Option<Path>,
+        scope: &mut ModuleScope,
     ) {
         let return_type = match out_type {
             None => Type::Nothing,
             Some(v) => self.type_from_path(&v),
         };
-        let params = self.ast_to_gst_params(params);
         let symbol = Symbol::Function {
             params,
             return_type,
         };
-        let mut cloned = self.context.clone();
-        let name = name.parse_arena(self.src, self.arena).to_string();
-        cloned.path.push(name);
-
-        self.map.insert(cloned, symbol);
+        let name = name.parse_arena(self.src, self.arena);
+        scope.symbols.insert(name, symbol);
     }
 
     pub(crate) fn parse_viewport_declaration(
         &mut self,
         name: Span,
         params: FunctionDeclarationParameters,
+        scope: &mut ModuleScope,
     ) {
-        let params = self.ast_to_gst_params(params);
         let symbol = Symbol::Viewport { params };
-        let mut cloned = self.context.clone();
-        let name = name.parse_arena(self.src, self.arena).to_string();
-        cloned.path.push(name);
-
-        self.map.insert(cloned, symbol);
+        let name = name.parse_arena(self.src, self.arena);
+        scope.symbols.insert(name, symbol);
     }
 
-    pub(crate) fn parse_mod_statement(&mut self, name: Span, mut tree: ASTTree) {
-        let name = name.parse_arena(self.src, self.arena).to_string();
-        let old_src = self.src;
-        let old_context = self.context.clone();
-        let mut mod_context = self.context.clone();
-        mod_context.path.push(name);
-        self.context = mod_context;
+    pub(crate) fn parse_mod_statement(
+        &mut self,
+        name: Span,
+        mut tree: ASTTree,
+        parent: &mut ModuleScope,
+    ) {
+        let old = self.src;
         self.src = self.loader.load(tree.id);
+        let mod_name = name.parse_arena(old, self.arena);
+        let mut mod_scope = ModuleScope::default();
         loop {
             let next = tree.next_node(self.arena);
             match next {
-                Some(v) => self.check_node(v.clone()),
-                _ => break,
+                None => break,
+                Some(v) => {
+                    self.check_node(v, &mut mod_scope);
+                }
             }
         }
-        self.context = old_context;
-        self.src = old_src;
+        parent.submodules.insert(mod_name, mod_scope);
+        self.src = old;
     }
+
     pub(crate) fn type_from_path(&mut self, input: &Path) -> Type {
         let vec = input.0.clone();
         use Type::*;
@@ -157,20 +158,6 @@ impl<'this> GlobalSymbolTree<'this> {
         Link(self.path_to_symbol_name(input))
     }
 
-    pub(crate) fn ast_to_gst_params(
-        &mut self,
-        input: FunctionDeclarationParameters,
-    ) -> FunctionParameters {
-        let avec = self.arena.take(input.0);
-        let mut out = FunctionParameters(Vec::new());
-        for i in avec.iter() {
-            let name = i.name.parse_arena(self.src, self.arena).to_string();
-            let p_type = self.type_from_path(&i.arg_type);
-            out.0.push((name, p_type));
-        }
-        out
-    }
-
     pub(crate) fn path_to_symbol_name(&mut self, input: &Path) -> SymbolName {
         let vec = input.0.clone();
         let mut out = SymbolName::new();
@@ -200,14 +187,14 @@ impl SymbolName {
     }
 }
 
-#[derive(Hash, Clone, PartialEq, Eq, Debug)]
+#[derive(Hash, Clone, Debug)]
 pub enum Symbol {
     Function {
         return_type: Type,
-        params: FunctionParameters,
+        params: FunctionDeclarationParameters,
     },
     Viewport {
-        params: FunctionParameters,
+        params: FunctionDeclarationParameters,
     },
 }
 
@@ -229,6 +216,3 @@ pub enum Type {
     Nothing,
     Link(SymbolName),
 }
-
-#[derive(Hash, Clone, PartialEq, Eq, Debug)]
-pub struct FunctionParameters(Vec<(String, Type)>);
