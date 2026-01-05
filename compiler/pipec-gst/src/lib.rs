@@ -1,8 +1,10 @@
+use pipec_arena::AStr;
 use pipec_arena::{ASlice, Arena};
 use pipec_arena_structures::ListNode;
 use pipec_ast::ast::ASTNode;
 use pipec_ast::ast::FunctionDeclarationParameters;
 use pipec_ast::ast::Path;
+use pipec_ast::ast::PathNode;
 use pipec_ast::ast::asttree::ASTTree;
 use pipec_file_loader::FileLoader;
 use pipec_span::Span;
@@ -14,14 +16,14 @@ pub struct GlobalSymbolTree<'this> {
     arena: &'this mut Arena,
     pub map: HashMap<SymbolName, Symbol>,
     context: SymbolName,
-    src: ASlice<String>,
+    src: ASlice<AStr>,
 }
 
 impl<'this> GlobalSymbolTree<'this> {
     pub fn new(arena: &'this mut Arena, loader: &'this mut FileLoader, ast: ASTTree) -> Self {
         let map = HashMap::new();
         let src = loader.load(ast.id);
-        let context = SymbolName::default();
+        let context = SymbolName::new();
         Self {
             ast,
             arena,
@@ -63,7 +65,7 @@ impl<'this> GlobalSymbolTree<'this> {
             ASTNode::ModStatement { name, tree } => {
                 self.parse_mod_statement(name, tree);
             }
-            _ => todo!(),
+            _ => {}
         }
     }
 
@@ -74,7 +76,7 @@ impl<'this> GlobalSymbolTree<'this> {
         out_type: Option<Path>,
     ) {
         let return_type = match out_type {
-            None => Type::Void,
+            None => Type::Nothing,
             Some(v) => self.type_from_path(&v),
         };
         let params = self.ast_to_gst_params(params);
@@ -129,26 +131,27 @@ impl<'this> GlobalSymbolTree<'this> {
             let first = vec.first(self.arena);
             match first {
                 ListNode::Empty => {}
-                ListNode::Node(val, _) => {
-                    let name = val.name.parse_arena(self.src, self.arena);
+                ListNode::Node(PathNode::Named { name, param: _ }, _) => {
+                    let name = name.parse_arena(self.src, self.arena);
                     match name {
-                        "i8" => return I8,
-                        "u8" => return U8,
-                        "f8" => return F8,
-                        "i16" => return I16,
-                        "u16" => return U16,
-                        "f16" => return F16,
-                        "i32" => return I32,
-                        "u32" => return U32,
-                        "f32" => return F32,
-                        "i64" => return I64,
-                        "u64" => return U64,
-                        "f64" => return F64,
-                        "fport" => return FPort,
-                        "void" => return Void,
+                        "integer8" => return Integer8,
+                        "unsigned8" => return Unsigned8,
+                        "float8" => return Float8,
+                        "integer16" => return Integer16,
+                        "unsigned16" => return Unsigned16,
+                        "float16" => return Float16,
+                        "integer32" => return Integer32,
+                        "unsigned32" => return Unsigned32,
+                        "float32" => return Float32,
+                        "integer64" => return Integer64,
+                        "unsigned64" => return Unsigned64,
+                        "float64" => return Float64,
+                        "floatport" => return FloatPort,
+                        "nothing" => return Nothing,
                         _ => {}
                     }
                 }
+                _ => {}
             }
         }
         Link(self.path_to_symbol_name(input))
@@ -170,18 +173,31 @@ impl<'this> GlobalSymbolTree<'this> {
 
     pub(crate) fn path_to_symbol_name(&mut self, input: &Path) -> SymbolName {
         let vec = input.0.clone();
-        let mut out = SymbolName::default();
-        for i in vec.iter(self.arena) {
-            let name = i.name.parse_arena(self.src, self.arena).to_string();
-            out.path.push(name);
+        let mut out = SymbolName::new();
+        let mut iter = vec.iter(self.arena);
+        loop {
+            let next = iter.next();
+            if next.is_none() {
+                break;
+            }
+            if let Some(PathNode::Named { name, param: _ }) = next {
+                let parsed = name.parse_arena(self.src, self.arena).to_string();
+                out.path.push(parsed);
+            }
         }
         out
     }
 }
 
-#[derive(Hash, Clone, PartialEq, Eq, Default, Debug)]
+#[derive(Hash, Clone, PartialEq, Eq, Debug)]
 pub struct SymbolName {
     pub(crate) path: Vec<String>,
+}
+
+impl SymbolName {
+    fn new() -> Self {
+        Self { path: vec![] }
+    }
 }
 
 #[derive(Hash, Clone, PartialEq, Eq, Debug)]
@@ -197,20 +213,20 @@ pub enum Symbol {
 
 #[derive(Hash, Clone, PartialEq, Eq, Debug)]
 pub enum Type {
-    I8,
-    U8,
-    F8,
-    I16,
-    U16,
-    F16,
-    I32,
-    U32,
-    F32,
-    I64,
-    U64,
-    F64,
-    FPort,
-    Void,
+    Integer8,
+    Unsigned8,
+    Float8,
+    Integer16,
+    Unsigned16,
+    Float16,
+    Integer32,
+    Unsigned32,
+    Float32,
+    Integer64,
+    Unsigned64,
+    Float64,
+    FloatPort,
+    Nothing,
     Link(SymbolName),
 }
 

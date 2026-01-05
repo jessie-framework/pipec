@@ -25,7 +25,7 @@ pub struct ASTGenerator<'this> {
 impl<'this> ASTGenerator<'this> {
     pub fn tree(mut self) -> ASTTree {
         let out = self.arena.alloc(AVec::new());
-        let out_handle = self.arena.take(out.clone());
+        let out_handle = self.arena.take(out);
         loop {
             let next = self.parse_value();
             if matches!(next, ASTNode::EOF) {
@@ -143,7 +143,7 @@ impl<'this> ASTGenerator<'this> {
     #[inline]
     pub(crate) fn consume_function_parameters(&mut self) -> FunctionDeclarationParameters {
         let vec = self.arena.alloc(AVec::new());
-        let vec_handle = self.arena.take(vec.clone());
+        let vec_handle = self.arena.take(vec);
         self.must(Token::LeftParenthesis);
         loop {
             self.consume_whitespace();
@@ -209,7 +209,7 @@ impl<'this> ASTGenerator<'this> {
     pub(crate) fn consume_mod_block(&mut self, mod_path: Span) -> ASTNode {
         self.advance_stream();
         let nodes = self.arena.alloc(AVec::new());
-        let nodes_handle = self.arena.take(nodes.clone());
+        let nodes_handle = self.arena.take(nodes);
         loop {
             self.consume_whitespace();
             if self.peek_stream() == &Some(Token::RightCurly) {

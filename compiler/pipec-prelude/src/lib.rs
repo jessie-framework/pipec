@@ -31,4 +31,5 @@ pub fn run_compiler() {
     let mut gst = GlobalSymbolTree::new(&mut arena, &mut loader, ast_tree);
     gst.generate();
     println!("{:#?}", gst.map);
+    println!("{} bytes used for arena", &arena.index());
 }
