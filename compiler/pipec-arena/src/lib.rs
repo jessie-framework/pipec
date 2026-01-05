@@ -25,6 +25,13 @@ pub struct ASlice<T> {
     pub(crate) end: usize,
 }
 
+/// Compiler can't "know" the size of ASlice<[u8]>, so this is for api convenience.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ABytes;
+/// Compiler can't "know" the size of ASlice<str>, so this is for api convenience.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AStr;
+
 impl<T> Clone for ASlice<T> {
     fn clone(&self) -> Self {
         *self
@@ -66,20 +73,33 @@ impl<T> ASlice<T> {
 
 /// An "owned pointer" the arena returns after you do an allocation with it.
 /// Lifetimes are a mess to deal with so returning a struct like this instead of say &'a mut T is easier
-#[derive(Debug, Copy)]
+#[derive(Debug)]
 pub struct ASpan<T> {
     _marker: PhantomData<T>,
     pub(crate) val: usize,
 }
 
-impl<T> Clone for ASpan<T> {
-    fn clone(&self) -> Self {
-        Self {
-            _marker: PhantomData,
-            val: self.val,
-        }
+impl<T> std::hash::Hash for ASpan<T> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        state.write_usize(self.val);
     }
 }
+
+impl<T> PartialEq for ASpan<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.val == other.val
+    }
+}
+
+impl<T> Eq for ASpan<T> {}
+
+impl<T> Clone for ASpan<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for ASpan<T> {}
 
 impl<T> ASpan<T> {
     pub(crate) fn new(input: usize) -> Self {
@@ -130,6 +150,17 @@ impl Arena {
         }
     }
 
+    /// Allocates an empty memory region given a size.
+    /// # Safety
+    /// The returned data will be empty. Yeah
+    pub unsafe fn alloc_empty(&mut self, size: usize) -> ASlice<ABytes> {
+        unsafe {
+            let bump = self.bump;
+            self.bump += size;
+            ASlice::from_raw_parts(bump, self.bump)
+        }
+    }
+
     /// Takes an ASpan<T> and turns it into a &mut T.
     pub fn take<'b, T>(&self, input: ASpan<T>) -> &'b mut T {
         unsafe {
@@ -139,7 +170,7 @@ impl Arena {
     }
 
     /// Takes an ASlice<&[u8]> and turns it into a &mut [u8].
-    pub fn take_slice<'b>(&self, input: ASlice<&[u8]>) -> &'b mut [u8] {
+    pub fn take_slice<'b>(&self, input: ASlice<ABytes>) -> &'b mut [u8] {
         unsafe {
             let ptr = self.data.as_ptr().add(input.start) as *mut u8;
 
@@ -149,7 +180,7 @@ impl Arena {
     }
 
     /// Takes an ASlice<String> and turns it into a &mut str.
-    pub fn take_str_slice<'b>(&self, input: ASlice<String>) -> &'b str {
+    pub fn take_str_slice<'b>(&self, input: ASlice<AStr>) -> &'b str {
         unsafe {
             let ptr = self.data.as_ptr().add(input.start) as *mut u8;
 

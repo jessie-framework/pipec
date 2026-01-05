@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use pipec_arena::{ASlice, Arena};
+use pipec_arena::{ASlice, AStr, Arena};
 use putbackpeekmore::PutBackPeekMore;
 use std::str::Chars;
 
@@ -12,7 +12,7 @@ pub struct Span {
 }
 
 impl Span {
-    pub fn parse_arena<'b>(&self, input: ASlice<String>, arena: &Arena) -> &'b str {
+    pub fn parse_arena<'b>(&self, input: ASlice<AStr>, arena: &Arena) -> &'b str {
         let parsed = arena.take_str_slice(input);
         &parsed[self.begin..self.end]
     }

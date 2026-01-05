@@ -7,7 +7,7 @@ pub enum ListNode<T> {
     Node(T, ASpan<Self>),
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct ADynList<T> {
     first: ASpan<ListNode<T>>,
     mutate: ASpan<ListNode<T>>,
@@ -24,10 +24,10 @@ where
 {
     type Item = T;
     fn next(&mut self) -> Option<Self::Item> {
-        match self.arena.take(self.current.clone()) {
+        match self.arena.take(self.current) {
             ListNode::Empty => None,
             ListNode::Node(current, next) => {
-                self.current = next.clone();
+                self.current = *next;
                 Some(current.clone())
             }
         }
@@ -36,24 +36,24 @@ where
 
 impl<T> ADynList<T> {
     pub fn push(&mut self, input: T, arena: &mut Arena) {
-        let handle = arena.take(self.mutate.clone());
+        let handle = arena.take(self.mutate);
         let empty = arena.alloc(ListNode::Empty);
-        *handle = ListNode::Node(input, empty.clone());
+        *handle = ListNode::Node(input, empty);
         self.mutate = empty
     }
     pub fn new(arena: &mut Arena) -> Self {
         let out = arena.alloc(ListNode::Empty);
         ADynList {
-            first: out.clone(),
+            first: out,
             mutate: out,
         }
     }
     pub fn first(&self, arena: &mut Arena) -> &mut ListNode<T> {
-        arena.take(self.first.clone())
+        arena.take(self.first)
     }
     pub fn iter<'a>(&'a self, arena: &'a Arena) -> ADynListIter<'a, T> {
         ADynListIter {
-            current: self.first.clone(),
+            current: self.first,
             arena,
         }
     }

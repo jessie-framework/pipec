@@ -19,16 +19,16 @@ impl ASTTree {
         }
     }
     pub fn current_node(&mut self, arena: &mut Arena) -> Option<&ASTNode> {
-        let handle = arena.take(self.stream.clone());
+        let handle = arena.take(self.stream);
         handle.get(self.pos)
     }
     pub fn next_node(&mut self, arena: &mut Arena) -> Option<ASTNode> {
-        let handle = arena.take(self.stream.clone());
+        let handle = arena.take(self.stream);
         self.pos += 1;
         handle.get(self.pos - 1).cloned()
     }
     pub fn peek(&mut self, arena: &mut Arena) -> Option<&ASTNode> {
-        let handle = arena.take(self.stream.clone());
+        let handle = arena.take(self.stream);
         handle.get(self.pos)
     }
     // pub fn from_vec(vec: Vec<ASTNode>) -> Self {
