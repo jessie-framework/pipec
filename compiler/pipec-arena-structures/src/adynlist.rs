@@ -1,6 +1,6 @@
 use pipec_arena::{ASpan, Arena};
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, Hash)]
 pub enum ListNode<T> {
     #[default]
     Empty,
