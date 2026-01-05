@@ -29,7 +29,7 @@ pub fn run_compiler() {
     let ast_tree = ast_generator.tree();
 
     let mut gst = GlobalSymbolTree::new(&mut arena, &mut loader, ast_tree);
-    gst.generate();
-    println!("{:#?}", gst.map);
+    let scope = gst.generate();
+    println!("{:#?}", scope);
     println!("{} bytes used for arena", &arena.index());
 }

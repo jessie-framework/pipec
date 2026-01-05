@@ -969,11 +969,11 @@ impl<'this> ASTGenerator<'this> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash)]
 #[allow(unused)]
 pub struct Path(pub ADynList<PathNode>);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash)]
 pub enum PathNode {
     Named {
         name: Span,
@@ -982,7 +982,7 @@ pub enum PathNode {
     Tuple(ADynList<Span>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash)]
 pub enum FunctionNodeParams {
     Tuple(ADynList<Expression>),
     Angles(ADynList<Path>),
@@ -1098,7 +1098,7 @@ pub enum Exported {
     Custom(Span),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash)]
 pub enum Expression {
     NumberExpression {
         value: Span,
@@ -1130,11 +1130,11 @@ pub enum Expression {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash)]
 #[allow(unused)]
 pub struct SwitchExpressionBlock(ADynList<SwitchArm>);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash)]
 #[allow(unused)]
 pub struct SwitchArm {
     lhs: ASpan<Expression>,
@@ -1165,11 +1165,11 @@ pub enum VariableType {
 #[allow(unused)]
 pub struct Block(ADynList<FunctionBlockStatements>);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash)]
 #[allow(unused)]
 pub struct FunctionDeclarationParameters(pub ASpan<AVec<FunctionDeclarationParameter, 20>>);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash)]
 #[allow(unused)]
 pub struct FunctionDeclarationParameter {
     pub name: Span,
