@@ -1,6 +1,5 @@
 use pipec_arena::AStr;
 use pipec_arena::{ASlice, Arena};
-use pipec_arena_structures::ListNode;
 use pipec_ast::ast::ASTNode;
 use pipec_ast::ast::FunctionDeclarationParameters;
 use pipec_ast::ast::Path;
@@ -37,7 +36,7 @@ impl<'this> GlobalSymbolTree<'this> {
     pub fn generate<'a>(&mut self) -> ModuleScope<'a> {
         let mut out = ModuleScope::default();
         loop {
-            let next = self.ast.next_node(self.arena);
+            let next = self.ast.next_node();
             match next {
                 Some(v) => match v {
                     ASTNode::EOF => {
@@ -112,7 +111,7 @@ impl<'this> GlobalSymbolTree<'this> {
         let mod_name = name.parse_arena(old, self.arena);
         let mut mod_scope = ModuleScope::default();
         loop {
-            let next = tree.next_node(self.arena);
+            let next = tree.next_node();
             match next {
                 None => break,
                 Some(v) => {
@@ -128,11 +127,11 @@ impl<'this> GlobalSymbolTree<'this> {
         let vec = input.0.clone();
         use Type::*;
 
-        if vec.len_eq(1, self.arena) {
-            let first = vec.first(self.arena);
+        if vec.len() == 1 {
+            let first = vec.first();
             match first {
-                ListNode::Empty => {}
-                ListNode::Node(PathNode::Named { name, param: _ }, _) => {
+                None => {}
+                Some(PathNode::Named { name, param: _ }) => {
                     let name = name.parse_arena(self.src, self.arena);
                     match name {
                         "integer8" => return Integer8,
@@ -161,7 +160,7 @@ impl<'this> GlobalSymbolTree<'this> {
     pub(crate) fn path_to_symbol_name(&mut self, input: &Path) -> SymbolName {
         let vec = input.0.clone();
         let mut out = SymbolName::new();
-        let mut iter = vec.iter(self.arena);
+        let mut iter = vec.iter();
         loop {
             let next = iter.next();
             if next.is_none() {

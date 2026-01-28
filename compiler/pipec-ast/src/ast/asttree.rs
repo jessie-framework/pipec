@@ -1,35 +1,26 @@
 use super::ASTNode;
-use pipec_arena::{ASpan, Arena};
-use pipec_arena_structures::AVec;
 use pipec_file_loader::FileId;
 
 #[derive(Debug, Clone)]
 pub struct ASTTree {
-    stream: ASpan<AVec<ASTNode, 1000>>,
+    stream: Vec<ASTNode>,
     pos: usize,
     pub id: FileId,
 }
 
 impl ASTTree {
-    pub fn new(input: ASpan<AVec<ASTNode, 1000>>, id: FileId) -> Self {
-        Self {
-            stream: input,
-            pos: 0,
-            id,
-        }
+    pub fn new(stream: Vec<ASTNode>, id: FileId) -> Self {
+        Self { stream, pos: 0, id }
     }
-    pub fn current_node(&mut self, arena: &mut Arena) -> Option<&ASTNode> {
-        let handle = arena.take(self.stream);
-        handle.get(self.pos)
+    pub fn current_node(&mut self) -> Option<&ASTNode> {
+        self.stream.get(self.pos)
     }
-    pub fn next_node(&mut self, arena: &mut Arena) -> Option<ASTNode> {
-        let handle = arena.take(self.stream);
+    pub fn next_node(&mut self) -> Option<ASTNode> {
         self.pos += 1;
-        handle.get(self.pos - 1).cloned()
+        self.stream.get(self.pos).cloned()
     }
-    pub fn peek(&mut self, arena: &mut Arena) -> Option<&ASTNode> {
-        let handle = arena.take(self.stream);
-        handle.get(self.pos)
+    pub fn peek(&mut self) -> Option<&ASTNode> {
+        self.stream.get(self.pos)
     }
     // pub fn from_vec(vec: Vec<ASTNode>) -> Self {
     //     Self {

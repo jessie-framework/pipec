@@ -1,6 +1,4 @@
 #![allow(unused_must_use)]
-use pipec_arena::{ASpan, Arena};
-use pipec_arena_structures::{ADynList, AVec};
 use pipec_file_loader::{FileId, FileLoader};
 use pipec_span::Span;
 use std::path::PathBuf;
@@ -17,21 +15,20 @@ pub struct ASTGenerator<'this> {
     src: FileId,
     tokens: &'this mut TokenTree<'this>,
     guard: &'this mut RecursiveGuard,
-    pub arena: &'this mut Arena,
     pub loader: &'this mut FileLoader,
+    arena: &'this mut pipec_arena::Arena,
     path: PathBuf,
 }
 
 impl<'this> ASTGenerator<'this> {
     pub fn tree(mut self) -> ASTTree {
-        let out = self.arena.alloc(AVec::new());
-        let out_handle = self.arena.take(out);
+        let mut out = Vec::new();
         loop {
             let next = self.parse_value();
             if matches!(next, ASTNode::EOF) {
                 break;
             }
-            out_handle.push(next).unwrap();
+            out.push(next);
         }
         ASTTree::new(out, self.src)
     }
@@ -39,21 +36,22 @@ impl<'this> ASTGenerator<'this> {
     pub fn file_id(&self) -> FileId {
         self.src
     }
+
     pub fn new(
         src: FileId,
         tokens: &'this mut TokenTree<'this>,
-        arena: &'this mut Arena,
         path: PathBuf,
+        arena: &'this mut pipec_arena::Arena,
         guard: &'this mut RecursiveGuard,
         loader: &'this mut FileLoader,
     ) -> Self {
         let path = path.parent().unwrap().to_path_buf();
         Self {
             src,
-            arena,
             tokens,
             path,
             guard,
+            arena,
             loader,
         }
     }
@@ -91,7 +89,7 @@ impl<'this> ASTGenerator<'this> {
     pub(crate) fn consume_public_keyword(&mut self) -> ASTNode {
         self.advance_stream();
         let val = self.parse_value();
-        ASTNode::Public(self.arena.alloc(val))
+        ASTNode::Public(Box::new(val))
     }
 
     #[inline]
@@ -142,8 +140,7 @@ impl<'this> ASTGenerator<'this> {
 
     #[inline]
     pub(crate) fn consume_function_parameters(&mut self) -> FunctionDeclarationParameters {
-        let vec = self.arena.alloc(AVec::new());
-        let vec_handle = self.arena.take(vec);
+        let mut vec = Vec::new();
         self.must(Token::LeftParenthesis);
         loop {
             self.consume_whitespace();
@@ -151,7 +148,7 @@ impl<'this> ASTGenerator<'this> {
                 self.advance_stream();
                 break;
             }
-            vec_handle.push(self.consume_function_parameter());
+            vec.push(self.consume_function_parameter());
             self.consume_whitespace();
             if self.next_is(Token::Comma) {
                 self.advance_stream();
@@ -208,15 +205,14 @@ impl<'this> ASTGenerator<'this> {
     #[inline]
     pub(crate) fn consume_mod_block(&mut self, mod_path: Span) -> ASTNode {
         self.advance_stream();
-        let nodes = self.arena.alloc(AVec::new());
-        let nodes_handle = self.arena.take(nodes);
+        let mut nodes = Vec::new();
         loop {
             self.consume_whitespace();
             if self.peek_stream() == &Some(Token::RightCurly) {
                 self.advance_stream();
                 break;
             }
-            nodes_handle.push(self.parse_value());
+            nodes.push(self.parse_value());
         }
         ASTNode::ModStatement {
             name: mod_path,
@@ -263,8 +259,8 @@ impl<'this> ASTGenerator<'this> {
             let ast_generator = ASTGenerator::new(
                 file_id,
                 &mut tokentree,
-                self.arena,
                 path1,
+                self.arena,
                 self.guard,
                 self.loader,
             );
@@ -285,8 +281,8 @@ impl<'this> ASTGenerator<'this> {
             let ast_generator = ASTGenerator::new(
                 file_id,
                 &mut tokentree,
-                self.arena,
                 path1,
+                self.arena,
                 self.guard,
                 self.loader,
             );
@@ -319,7 +315,7 @@ impl<'this> ASTGenerator<'this> {
     pub(crate) fn consume_component_declaration_block(&mut self) -> ComponentDeclarationBlock {
         self.consume_whitespace();
         self.must(Token::LeftCurly);
-        let mut contents = ADynList::new(self.arena);
+        let mut contents = Vec::new();
         loop {
             self.consume_whitespace();
             let next = self.peek_stream();
@@ -327,7 +323,7 @@ impl<'this> ASTGenerator<'this> {
                 self.advance_stream();
                 break;
             }
-            contents.push(self.consume_component_declaration_statement(), self.arena);
+            contents.push(self.consume_component_declaration_statement());
         }
 
         ComponentDeclarationBlock { contents }
@@ -429,7 +425,7 @@ impl<'this> ASTGenerator<'this> {
     #[inline]
     pub(crate) fn consume_function_block(&mut self) -> Block {
         self.must(Token::LeftCurly);
-        let mut block = ADynList::new(self.arena);
+        let mut block = Vec::new();
         loop {
             self.consume_whitespace();
             let next = self.peek_stream();
@@ -437,7 +433,7 @@ impl<'this> ASTGenerator<'this> {
                 self.advance_stream();
                 break;
             }
-            block.push(self.consume_a_block_statement(), self.arena);
+            block.push(self.consume_a_block_statement());
         }
         Block(block)
     }
@@ -694,8 +690,8 @@ impl<'this> ASTGenerator<'this> {
 
             return Expression::BinaryOpExpression {
                 optype: v,
-                lhs: self.arena.alloc(input),
-                rhs: self.arena.alloc(rhs_expr),
+                lhs: Box::new(input),
+                rhs: Box::new(rhs_expr),
             };
         }
         input
@@ -706,7 +702,7 @@ impl<'this> ASTGenerator<'this> {
         self.advance_stream();
         self.consume_whitespace();
         let expression = self.consume_an_expression();
-        let predicate = self.arena.alloc(expression);
+        let predicate = Box::new(expression);
         Expression::SwitchExpression {
             predicate,
             block: self.consume_switch_block(),
@@ -717,14 +713,14 @@ impl<'this> ASTGenerator<'this> {
     pub(crate) fn consume_switch_block(&mut self) -> SwitchExpressionBlock {
         self.consume_whitespace();
         self.must(Token::LeftCurly);
-        let mut out = ADynList::new(self.arena);
+        let mut out = Vec::new();
         loop {
             self.consume_whitespace();
             if self.next_is(Token::RightCurly) {
                 self.advance_stream();
                 break;
             }
-            out.push(self.consume_switch_arm(), self.arena);
+            out.push(self.consume_switch_arm());
             if self.next_is(Token::Comma) {
                 self.advance_stream();
                 continue;
@@ -737,12 +733,12 @@ impl<'this> ASTGenerator<'this> {
     pub(crate) fn consume_switch_arm(&mut self) -> SwitchArm {
         let expr = self.consume_an_expression();
         println!("arm lhs = {expr:#?}");
-        let lhs = self.arena.alloc(expr);
+        let lhs = Box::new(expr);
         self.consume_whitespace();
         self.must(Token::ThinArrow);
         self.consume_whitespace();
         let expr = self.consume_an_expression();
-        let rhs = self.arena.alloc(expr);
+        let rhs = Box::new(expr);
         SwitchArm { lhs, rhs }
     }
 
@@ -751,7 +747,7 @@ impl<'this> ASTGenerator<'this> {
         self.advance_stream();
         self.consume_whitespace();
         let expr = self.consume_an_expression();
-        let value = self.arena.alloc(expr);
+        let value = Box::new(expr);
         Expression::RequiredExpression { value }
     }
 
@@ -775,9 +771,9 @@ impl<'this> ASTGenerator<'this> {
     #[inline]
     pub(crate) fn consume_list_expression(&mut self) -> Expression {
         self.advance_stream();
-        let mut exprs = ADynList::new(self.arena);
+        let mut exprs = Vec::new();
         loop {
-            exprs.push(self.consume_an_expression(), self.arena);
+            exprs.push(self.consume_an_expression());
 
             self.consume_whitespace();
 
@@ -804,7 +800,7 @@ impl<'this> ASTGenerator<'this> {
         self.consume_whitespace();
         let expr = self.consume_an_expression();
         Expression::TildeExpression {
-            value: self.arena.alloc(expr),
+            value: Box::new(expr),
         }
     }
 
@@ -818,9 +814,9 @@ impl<'this> ASTGenerator<'this> {
     #[inline]
     pub(crate) fn consume_tuple_expression(&mut self) -> Expression {
         self.advance_stream();
-        let mut values = ADynList::new(self.arena);
+        let mut values = Vec::new();
         loop {
-            values.push(self.consume_an_expression(), self.arena);
+            values.push(self.consume_an_expression());
             self.consume_whitespace();
 
             let next = self.peek_stream();
@@ -868,7 +864,7 @@ impl<'this> ASTGenerator<'this> {
 
     #[inline]
     fn consume_a_path(&mut self) -> Path {
-        let mut out = ADynList::new(self.arena);
+        let mut out = Vec::new();
         loop {
             let next = self.peek_stream();
             match next {
@@ -876,7 +872,7 @@ impl<'this> ASTGenerator<'this> {
                     let name = *v;
                     self.advance_stream();
                     let param = self.consume_path_param();
-                    out.push(PathNode::Named { name, param }, self.arena);
+                    out.push(PathNode::Named { name, param });
                     continue;
                 }
                 Some(Token::Slash) => {
@@ -885,12 +881,12 @@ impl<'this> ASTGenerator<'this> {
                 }
                 Some(Token::LeftParenthesis) => {
                     self.advance_stream();
-                    let mut vals = ADynList::new(self.arena);
+                    let mut vals = Vec::new();
                     loop {
                         self.consume_whitespace();
                         match self.advance_stream() {
                             Some(Token::Ident(v)) => {
-                                vals.push(v, self.arena);
+                                vals.push(v);
                                 continue;
                             }
                             Some(Token::RightParenthesis) => {
@@ -933,14 +929,14 @@ impl<'this> ASTGenerator<'this> {
     }
 
     #[inline]
-    pub(crate) fn consume_angle_params(&mut self) -> ADynList<Path> {
+    pub(crate) fn consume_angle_params(&mut self) -> Vec<Path> {
         self.must(Token::LeftAngle);
-        let mut out = ADynList::new(self.arena);
+        let mut out = Vec::new();
         loop {
             self.consume_whitespace();
             match self.peek_stream() {
                 Some(Token::Ident(_)) => {
-                    out.push(self.consume_a_path(), self.arena);
+                    out.push(self.consume_a_path());
                     self.consume_whitespace();
                     match self.peek_stream() {
                         Some(Token::Comma) => {
@@ -971,7 +967,7 @@ impl<'this> ASTGenerator<'this> {
 
 #[derive(Clone, Debug, Hash)]
 #[allow(unused)]
-pub struct Path(pub ADynList<PathNode>);
+pub struct Path(pub Vec<PathNode>);
 
 #[derive(Debug, Clone, Hash)]
 pub enum PathNode {
@@ -979,13 +975,13 @@ pub enum PathNode {
         name: Span,
         param: Option<FunctionNodeParams>,
     },
-    Tuple(ADynList<Span>),
+    Tuple(Vec<Span>),
 }
 
 #[derive(Debug, Clone, Hash)]
 pub enum FunctionNodeParams {
-    Tuple(ADynList<Expression>),
-    Angles(ADynList<Path>),
+    Tuple(Vec<Expression>),
+    Angles(Vec<Path>),
 }
 
 #[derive(Debug, Clone)]
@@ -1017,14 +1013,14 @@ pub enum ASTNode {
         name: Span,
         tree: ASTTree,
     },
-    Public(ASpan<Self>),
+    Public(Box<Self>),
     EOF,
 }
 
 #[derive(Debug, Clone)]
 #[allow(unused)]
 pub struct ComponentDeclarationBlock {
-    contents: ADynList<ComponentDeclarationBlockStatements>,
+    contents: Vec<ComponentDeclarationBlockStatements>,
 }
 
 #[derive(Debug, Clone)]
@@ -1108,37 +1104,37 @@ pub enum Expression {
         value: Path,
     },
     TupleExpression {
-        values: ADynList<Self>,
+        values: Vec<Self>,
     },
     ListExpression {
-        values: ADynList<Self>,
+        values: Vec<Self>,
     },
     BinaryOpExpression {
         optype: BinaryOpType,
-        lhs: ASpan<Self>,
-        rhs: ASpan<Self>,
+        lhs: Box<Self>,
+        rhs: Box<Self>,
     },
     TildeExpression {
-        value: ASpan<Self>,
+        value: Box<Self>,
     },
     RequiredExpression {
-        value: ASpan<Self>,
+        value: Box<Self>,
     },
     SwitchExpression {
-        predicate: ASpan<Self>,
+        predicate: Box<Self>,
         block: SwitchExpressionBlock,
     },
 }
 
 #[derive(Debug, Clone, Hash)]
 #[allow(unused)]
-pub struct SwitchExpressionBlock(ADynList<SwitchArm>);
+pub struct SwitchExpressionBlock(Vec<SwitchArm>);
 
 #[derive(Debug, Clone, Hash)]
 #[allow(unused)]
 pub struct SwitchArm {
-    lhs: ASpan<Expression>,
-    rhs: ASpan<Expression>,
+    lhs: Box<Expression>,
+    rhs: Box<Expression>,
 }
 
 #[derive(Debug, PartialEq, Clone, Eq, Hash)]
@@ -1163,11 +1159,11 @@ pub enum VariableType {
 
 #[derive(Debug, Clone)]
 #[allow(unused)]
-pub struct Block(ADynList<FunctionBlockStatements>);
+pub struct Block(Vec<FunctionBlockStatements>);
 
 #[derive(Debug, Clone, Hash)]
 #[allow(unused)]
-pub struct FunctionDeclarationParameters(pub ASpan<AVec<FunctionDeclarationParameter, 20>>);
+pub struct FunctionDeclarationParameters(pub Vec<FunctionDeclarationParameter>);
 
 #[derive(Debug, Clone, Hash)]
 #[allow(unused)]
