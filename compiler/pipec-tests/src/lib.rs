@@ -28,8 +28,8 @@ macro_rules! test_file_generation {
         let mut ast_generator = ASTGenerator::new(
             file_id,
             &mut tokentree,
-            &mut arena,
             file_dir,
+            &mut arena,
             &mut guard,
             &mut loader,
         );

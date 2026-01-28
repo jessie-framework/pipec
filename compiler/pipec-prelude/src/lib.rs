@@ -21,8 +21,8 @@ pub fn run_compiler() {
     let ast_generator = ASTGenerator::new(
         file_id,
         &mut tokentree,
-        &mut arena,
         args.file,
+        &mut arena,
         &mut guard,
         &mut loader,
     );
