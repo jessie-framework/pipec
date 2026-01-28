@@ -78,6 +78,7 @@ impl<'this> ASTGenerator<'this> {
                 Token::FunctionKeyword => self.consume_function_keyword(),
                 Token::PublicKeyword => self.consume_public_keyword(),
                 Token::TypeKeyword => self.consume_type_keyword(),
+                Token::AtSign => self.consume_attributes(),
                 _v => {
                     println!("{_v:#?}");
                     todo!();
@@ -85,6 +86,34 @@ impl<'this> ASTGenerator<'this> {
             },
             None => ASTNode::EOF,
         }
+    }
+
+    #[inline]
+    pub(crate) fn consume_attributes(&mut self) -> ASTNode {
+        let mut attributes = Vec::new();
+        loop {
+            if self.next_is(Token::AtSign) {
+                self.advance_stream();
+                let name = self
+                    .must_ident()
+                    .parse_arena(self.loader.load(self.src), self.arena);
+                match name {
+                    "language" => attributes.push(self.consume_language_attribute()),
+                    _ => todo!(),
+                }
+            } else {
+                break;
+            }
+        }
+        ASTNode::Attributed(attributes, Box::new(self.parse_value()))
+    }
+
+    #[inline]
+    pub(crate) fn consume_language_attribute(&mut self) -> Attribute {
+        self.must(Token::LeftParenthesis);
+        let name = self.must_string();
+        self.must(Token::RightParenthesis);
+        Attribute::LanguageAttribute(name)
     }
 
     #[inline]
@@ -270,6 +299,14 @@ impl<'this> ASTGenerator<'this> {
     #[inline]
     pub(crate) fn must_ident(&mut self) -> Span {
         if let Some(Token::Ident(v)) = self.advance_stream() {
+            return v;
+        }
+        unreachable!()
+    }
+
+    #[inline]
+    pub(crate) fn must_string(&mut self) -> Span {
+        if let Some(Token::String(v)) = self.advance_stream() {
             return v;
         }
         unreachable!()
@@ -1127,7 +1164,13 @@ pub enum ASTNode {
         subtype: SubType,
     },
     Public(Box<Self>),
+    Attributed(Vec<Attribute>, Box<Self>),
     EOF,
+}
+
+#[derive(Debug, Clone)]
+pub enum Attribute {
+    LanguageAttribute(Span),
 }
 
 #[derive(Debug, Clone)]
