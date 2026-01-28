@@ -434,6 +434,7 @@ impl<'chars> Tokenizer<'chars> {
             "function" => FunctionKeyword,
             "immutable" => ImmutableKeyword,
             "switch" => SwitchKeyword,
+            "type" => TypeKeyword,
             _ => Token::Ident(input),
         }
     }
@@ -559,6 +560,8 @@ pub enum Token {
     FunctionKeyword,
     /// switch
     SwitchKeyword,
+    /// type
+    TypeKeyword,
     /// 21213
     Digit { val: Span, digittype: DigitType },
     /// things_like_this or this_2

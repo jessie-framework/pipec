@@ -1,6 +1,7 @@
 #![allow(unused_must_use)]
 use pipec_file_loader::{FileId, FileLoader};
 use pipec_span::Span;
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use crate::RecursiveGuard;
@@ -76,6 +77,7 @@ impl<'this> ASTGenerator<'this> {
                 Token::ViewportKeyword => self.consume_viewport_keyword(),
                 Token::FunctionKeyword => self.consume_function_keyword(),
                 Token::PublicKeyword => self.consume_public_keyword(),
+                Token::TypeKeyword => self.consume_type_keyword(),
                 _v => {
                     println!("{_v:#?}");
                     todo!();
@@ -83,6 +85,113 @@ impl<'this> ASTGenerator<'this> {
             },
             None => ASTNode::EOF,
         }
+    }
+
+    #[inline]
+    pub(crate) fn consume_type_keyword(&mut self) -> ASTNode {
+        self.advance_stream();
+        self.consume_whitespace();
+        let name = self.must_ident();
+        self.consume_whitespace();
+        match self.peek_stream() {
+            Some(Token::EqualSign) => {
+                self.advance_stream();
+                let subtype = self.consume_subtype();
+                self.consume_a_semicolon();
+                ASTNode::TypeDeclaration { name, subtype }
+            }
+            Some(Token::Semicolon) => {
+                let subtype = SubType::Empty;
+                self.consume_a_semicolon();
+                ASTNode::TypeDeclaration { name, subtype }
+            }
+            _ => todo!(),
+        }
+    }
+
+    #[inline]
+    pub(crate) fn consume_subtype(&mut self) -> SubType {
+        self.consume_whitespace();
+        match self.peek_stream() {
+            Some(Token::Ident(_)) => self.consume_named_subtype(),
+            Some(Token::LeftParenthesis) => self.consume_union_subtype(),
+            Some(Token::LeftCurly) => self.consume_map_subtype(),
+            _ => todo!(),
+        }
+    }
+
+    #[inline]
+    pub(crate) fn consume_union_subtype(&mut self) -> SubType {
+        self.advance_stream();
+        let mut out = Vec::new();
+        loop {
+            self.consume_whitespace();
+            match self.peek_stream() {
+                Some(Token::RightParenthesis) => {
+                    self.advance_stream();
+                    break;
+                }
+                Some(Token::Ident(_)) | Some(Token::LeftParenthesis) | Some(Token::LeftCurly) => {
+                    out.push(self.consume_subtype());
+                    self.consume_whitespace();
+                    if self.next_is(Token::Pipe) {
+                        self.advance_stream();
+                        continue;
+                    }
+                }
+                _ => todo!(),
+            }
+        }
+        SubType::Union(out)
+    }
+
+    #[inline]
+    pub(crate) fn consume_named_subtype(&mut self) -> SubType {
+        let name = self.must_ident();
+        self.consume_whitespace();
+        match self.peek_stream() {
+            Some(Token::Semicolon)
+            | Some(Token::Pipe)
+            | Some(Token::RightParenthesis)
+            | Some(Token::Comma)
+            | Some(Token::RightCurly) => SubType::Name(name),
+
+            Some(Token::Colon) => {
+                self.advance_stream();
+                self.consume_whitespace();
+                SubType::Named(name, Box::new(self.consume_subtype()))
+            }
+            v => unreachable!("{v:#?} btw aa"),
+        }
+    }
+
+    #[inline]
+    pub(crate) fn consume_map_subtype(&mut self) -> SubType {
+        self.advance_stream();
+        let mut map = HashMap::new();
+        loop {
+            self.consume_whitespace();
+            match self.advance_stream() {
+                Some(Token::Ident(name)) => {
+                    let string = name
+                        .parse_arena(self.loader.load(self.src), self.arena)
+                        .to_owned();
+                    self.consume_whitespace();
+                    self.must(Token::Colon);
+                    self.consume_whitespace();
+                    map.insert(string, self.consume_subtype());
+                    if self.next_is(Token::Comma) {
+                        self.advance_stream();
+                        continue;
+                    }
+                }
+                Some(Token::RightCurly) => {
+                    break;
+                }
+                _ => todo!(),
+            }
+        }
+        SubType::Map(map)
     }
 
     #[inline]
@@ -1013,8 +1122,21 @@ pub enum ASTNode {
         name: Span,
         tree: ASTTree,
     },
+    TypeDeclaration {
+        name: Span,
+        subtype: SubType,
+    },
     Public(Box<Self>),
     EOF,
+}
+
+#[derive(Debug, Clone)]
+pub enum SubType {
+    Map(HashMap<String, Self>),
+    Name(Span),
+    Named(Span, Box<Self>),
+    Union(Vec<Self>),
+    Empty,
 }
 
 #[derive(Debug, Clone)]
