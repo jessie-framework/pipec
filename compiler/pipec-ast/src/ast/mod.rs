@@ -78,6 +78,7 @@ impl<'this> ASTGenerator<'this> {
                 Token::FunctionKeyword => self.consume_function_keyword(),
                 Token::PublicKeyword => self.consume_public_keyword(),
                 Token::TypeKeyword => self.consume_type_keyword(),
+                Token::TraitKeyword => self.consume_trait_keyword(),
                 Token::AtSign => self.consume_attributes(),
                 _v => {
                     println!("{_v:#?}");
@@ -85,6 +86,38 @@ impl<'this> ASTGenerator<'this> {
                 }
             },
             None => ASTNode::EOF,
+        }
+    }
+
+    #[inline]
+    pub(crate) fn consume_trait_keyword(&mut self) -> ASTNode {
+        self.advance_stream();
+        self.consume_whitespace();
+        let name = self.must_ident();
+        let generics = self.consume_generics();
+        self.consume_whitespace();
+        let mut supertraits = Traits::default();
+        if self.next_is(Token::Colon) {
+            self.advance_stream();
+            supertraits = self.consume_traits();
+        }
+        self.consume_whitespace();
+        self.must(Token::LeftCurly);
+        let mut nodes = Vec::new();
+        loop {
+            self.consume_whitespace();
+            if self.peek_stream() == &Some(Token::RightCurly) {
+                self.advance_stream();
+                break;
+            }
+            nodes.push(self.parse_value());
+        }
+        let tree = ASTTree::new(nodes, self.src);
+        ASTNode::TraitDeclaration {
+            name,
+            generics,
+            supertraits,
+            tree,
         }
     }
 
@@ -317,7 +350,7 @@ impl<'this> ASTGenerator<'this> {
                         v => todo!("{v:#?}"),
                     }
                 }
-                Some(Token::RightSquare) => {
+                Some(Token::RightSquare) | Some(Token::RightCurly) => {
                     break;
                 }
                 _ => todo!(),
@@ -342,7 +375,7 @@ impl<'this> ASTGenerator<'this> {
                         continue;
                     }
                 }
-                Some(Token::Comma) | Some(Token::RightSquare) => {
+                Some(Token::Comma) | Some(Token::RightSquare) | Some(Token::LeftCurly) => {
                     break;
                 }
                 v => todo!("{v:#?}"),
@@ -1287,6 +1320,12 @@ pub enum ASTNode {
         name: Span,
         generics: Generics,
         subtype: SubType,
+    },
+    TraitDeclaration {
+        name: Span,
+        generics: Generics,
+        supertraits: Traits,
+        tree: ASTTree,
     },
     Public(Box<Self>),
     Attributed(Vec<Attribute>, Box<Self>),
