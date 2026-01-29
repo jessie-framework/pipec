@@ -121,20 +121,29 @@ impl<'this> ASTGenerator<'this> {
         self.advance_stream();
         self.consume_whitespace();
         let name = self.must_ident();
+        let generics = self.consume_generics();
         self.consume_whitespace();
         match self.peek_stream() {
             Some(Token::EqualSign) => {
                 self.advance_stream();
                 let subtype = self.consume_subtype();
                 self.consume_a_semicolon();
-                ASTNode::TypeDeclaration { name, subtype }
+                ASTNode::TypeDeclaration {
+                    name,
+                    subtype,
+                    generics,
+                }
             }
             Some(Token::Semicolon) => {
                 let subtype = SubType::Empty;
                 self.consume_a_semicolon();
-                ASTNode::TypeDeclaration { name, subtype }
+                ASTNode::TypeDeclaration {
+                    name,
+                    subtype,
+                    generics,
+                }
             }
-            _ => todo!(),
+            v => todo!("{v:#?}"),
         }
     }
 
@@ -231,10 +240,123 @@ impl<'this> ASTGenerator<'this> {
     }
 
     #[inline]
+    pub(crate) fn consume_generics(&mut self) -> Generics {
+        self.consume_whitespace();
+        if !self.next_is(Token::LeftSquare) {
+            return Generics(vec![]);
+        }
+        self.must(Token::LeftSquare);
+        let mut out = Vec::new();
+        loop {
+            self.consume_whitespace();
+            match self.advance_stream() {
+                Some(Token::Hash) => {
+                    let name = self.must_ident();
+                    self.consume_whitespace();
+                    match self.peek_stream() {
+                        Some(Token::Colon) => {
+                            self.advance_stream();
+                            let traits = self.consume_traits();
+                            out.push(Generic {
+                                name,
+                                generictype: GenericType::Lifetime,
+                                traits,
+                            });
+                            self.consume_whitespace();
+                            if self.next_is(Token::Comma) {
+                                self.advance_stream();
+                                continue;
+                            }
+                        }
+                        Some(Token::Comma) => {
+                            self.advance_stream();
+                            out.push(Generic {
+                                name,
+                                generictype: GenericType::Lifetime,
+                                traits: Traits::default(),
+                            });
+                            continue;
+                        }
+                        Some(Token::RightSquare) => {
+                            self.advance_stream();
+                            break;
+                        }
+                        _ => todo!(),
+                    }
+                }
+                Some(Token::Ident(name)) => {
+                    self.consume_whitespace();
+                    match self.peek_stream() {
+                        Some(Token::Colon) => {
+                            self.advance_stream();
+                            let traits = self.consume_traits();
+                            out.push(Generic {
+                                name,
+                                generictype: GenericType::Generic,
+                                traits,
+                            });
+                            self.consume_whitespace();
+                            if self.next_is(Token::Comma) {
+                                self.advance_stream();
+                                continue;
+                            }
+                        }
+                        Some(Token::Comma) => {
+                            self.advance_stream();
+                            out.push(Generic {
+                                name,
+                                generictype: GenericType::Generic,
+                                traits: Traits::default(),
+                            });
+                            continue;
+                        }
+                        Some(Token::RightSquare) => {
+                            self.advance_stream();
+                            break;
+                        }
+                        v => todo!("{v:#?}"),
+                    }
+                }
+                Some(Token::RightSquare) => {
+                    break;
+                }
+                _ => todo!(),
+            }
+        }
+        Generics(out)
+    }
+
+    #[inline]
+    pub(crate) fn consume_traits(&mut self) -> Traits {
+        let mut out = Vec::new();
+        loop {
+            self.consume_whitespace();
+            match self.peek_stream() {
+                Some(Token::Ident(_)) => {
+                    let name = self.must_ident();
+                    let generics = self.consume_generics();
+                    out.push(Trait { name, generics });
+                    self.consume_whitespace();
+                    if self.next_is(Token::Plus) {
+                        self.advance_stream();
+                        continue;
+                    }
+                }
+                Some(Token::Comma) | Some(Token::RightSquare) => {
+                    break;
+                }
+                v => todo!("{v:#?}"),
+            }
+        }
+        Traits(out)
+    }
+
+    #[inline]
     pub(crate) fn consume_function_keyword(&mut self) -> ASTNode {
         self.advance_stream();
         self.consume_whitespace();
         let name = self.must_ident();
+        let generics = self.consume_generics();
         self.consume_whitespace();
         let params = self.consume_function_parameters();
         self.consume_whitespace();
@@ -252,6 +374,7 @@ impl<'this> ASTGenerator<'this> {
             params,
             block,
             out_type,
+            generics,
         }
     }
 
@@ -1137,6 +1260,7 @@ pub enum ASTNode {
     },
     FunctionDeclaration {
         name: Span,
+        generics: Generics,
         params: FunctionDeclarationParameters,
         block: Block,
         out_type: Option<Path>,
@@ -1161,6 +1285,7 @@ pub enum ASTNode {
     },
     TypeDeclaration {
         name: Span,
+        generics: Generics,
         subtype: SubType,
     },
     Public(Box<Self>),
@@ -1335,4 +1460,32 @@ pub struct FunctionDeclarationParameters(pub Vec<FunctionDeclarationParameter>);
 pub struct FunctionDeclarationParameter {
     pub name: Span,
     pub arg_type: Path,
+}
+
+#[derive(Debug, Clone)]
+pub struct Generics(pub Vec<Generic>);
+
+#[derive(Debug, Clone)]
+#[allow(unused)]
+pub struct Generic {
+    name: Span,
+    generictype: GenericType,
+    traits: Traits,
+}
+
+#[derive(Debug, Clone, Default)]
+#[allow(unused)]
+pub struct Traits(Vec<Trait>);
+
+#[derive(Debug, Clone)]
+#[allow(unused)]
+pub struct Trait {
+    name: Span,
+    generics: Generics,
+}
+
+#[derive(Debug, Clone)]
+pub enum GenericType {
+    Lifetime,
+    Generic,
 }

@@ -56,6 +56,7 @@ impl<'this> GlobalSymbolTree<'this> {
                 name,
                 params,
                 block: _,
+                generics: _,
                 out_type,
             } => self.parse_function_declaration(name, params, out_type, scope),
             ASTNode::ViewportDeclaration {
