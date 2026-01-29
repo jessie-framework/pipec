@@ -1,0 +1,144 @@
+trait Basic {
+	function new() => unsigned32 {}
+}
+
+trait WithGeneric[T] {
+	function new() => unsigned32 {}
+}
+
+trait WithGenericWithTrait[T : Trait] {
+	function new() => unsigned32 {}
+}
+
+trait WithGenericWithMultipleTraits[T : Trait1 + Trait2 + Trait3] {
+	function new() => unsigned32 {}
+}
+
+trait WithMultipleGenerics[T,U] {
+	function new() => unsigned32 {}
+}
+
+trait WithMultipleGenericsWithMultipleTraits[T : Trait1 + Trait2 + Trait3 , U : Trait1 + Trait2 + Trait3] {
+	function new() => unsigned32 {}
+}
+
+trait WithGenericWithGenericTrait[T : Trait[T]] {
+	function new() => unsigned32 {}
+}
+
+trait WithGenericWithMultipleGenericTrait[T : Trait1[T] + Trait2[T] + Trait3[T]] {
+	function new() => unsigned32 {}
+}
+
+trait WithMultipleGenericWithMultipleGenericTrait[T : Trait1[T] + Trait2[T] + Trait3[T] , U : Trait1[U] + Trait2[U] + Trait3[U]] {
+	function new() => unsigned32 {}
+}
+
+trait BasicWithSuperTrait : Trait1 {
+	function new() => unsigned32 {}
+}
+
+trait WithGenericWithSuperTrait[T] : Trait1 {
+	function new() => unsigned32 {}
+}
+
+trait WithGenericWithTraitWithSuperTrait[T : Trait] : Trait1 {
+	function new() => unsigned32 {}
+}
+
+trait WithGenericWithMultipleTraitsWithSuperTrait[T : Trait1 + Trait2 + Trait3] : Trait1 {
+	function new() => unsigned32 {}
+}
+
+trait WithMultipleGenericsWithSuperTrait[T,U] : Trait1 {
+	function new() => unsigned32 {}
+}
+
+trait WithMultipleGenericsWithMultipleTraitsWithSuperTrait[T : Trait1 + Trait2 + Trait3 , U : Trait1 + Trait2 + Trait3] : Trait1 {
+	function new() => unsigned32 {}
+}
+
+trait WithGenericWithGenericTraitWithSuperTrait[T : Trait[T]] : Trait1 {
+	function new() => unsigned32 {}
+}
+
+trait WithGenericWithMultipleGenericTraitWithSuperTrait[T : Trait1[T] + Trait2[T] + Trait3[T]] : Trait1 {
+	function new() => unsigned32 {}
+}
+
+trait WithMultipleGenericWithMultipleGenericTraitWithSuperTrait[T : Trait1[T] + Trait2[T] + Trait3[T] , U : Trait1[U] + Trait2[U] + Trait3[U]] : Trait1 {
+	function new() => unsigned32 {}
+}
+
+trait BasicWithMultiSuperTrait : Trait1 + Trait2 + Trait3 {
+	function new() => unsigned32 {}
+}
+
+trait WithGenericWithMultiSuperTrait[T] : Trait1 + Trait2 + Trait3 {
+	function new() => unsigned32 {}
+}
+
+trait WithGenericWithTraitWithMultiSuperTrait[T : Trait] : Trait1 + Trait2 + Trait3 {
+	function new() => unsigned32 {}
+}
+
+trait WithGenericWithMultipleTraitsWithMultiSuperTrait[T : Trait1 + Trait2 + Trait3] : Trait1 + Trait2 + Trait3 {
+	function new() => unsigned32 {}
+}
+
+trait WithMultipleGenericsWithMultiSuperTrait[T,U] : Trait1 + Trait2 + Trait3 {
+	function new() => unsigned32 {}
+}
+
+trait WithMultipleGenericsWithMultipleTraitsWithMultiSuperTrait[T : Trait1 + Trait2 + Trait3 , U : Trait1 + Trait2 + Trait3] : Trait1 + Trait2 + Trait3 {
+	function new() => unsigned32 {}
+}
+
+trait WithGenericWithGenericTraitWithMultiSuperTrait[T : Trait[T]] : Trait1 + Trait2 + Trait3 {
+	function new() => unsigned32 {}
+}
+
+trait WithGenericWithMultipleGenericTraitWithMultiSuperTrait[T : Trait1[T] + Trait2[T] + Trait3[T]] : Trait1 + Trait2 + Trait3 {
+	function new() => unsigned32 {}
+}
+
+trait WithMultipleGenericWithMultipleGenericTraitWithMultiSuperTrait[T : Trait1[T] + Trait2[T] + Trait3[T] , U : Trait1[U] + Trait2[U] + Trait3[U]] : Trait1 + Trait2 + Trait3 {
+	function new() => unsigned32 {}
+}
+
+trait BasicWithMultiSuperTraitWithGenerics : Trait1[T] + Trait2[T] + Trait3[T] {
+	function new() => unsigned32 {}
+}
+
+trait WithGenericWithMultiSuperTraitWithGenerics[T] : Trait1[T] + Trait2[T] + Trait3[T] {
+	function new() => unsigned32 {}
+}
+
+trait WithGenericWithTraitWithMultiSuperTraitWithGenerics[T : Trait] : Trait1[T] + Trait2[T] + Trait3[T] {
+	function new() => unsigned32 {}
+}
+
+trait WithGenericWithMultipleTraitsWithMultiSuperTraitWithGenerics[T : Trait1 + Trait2 + Trait3] : Trait1[T] + Trait2[T] + Trait3[T] {
+	function new() => unsigned32 {}
+}
+
+trait WithMultipleGenericsWithMultiSuperTraitWithGenerics[T,U] : Trait1[T] + Trait2[T] + Trait3[T] {
+	function new() => unsigned32 {}
+}
+
+trait WithMultipleGenericsWithMultipleTraitsWithMultiSuperTraitWithGenerics[T : Trait1 + Trait2 + Trait3 , U : Trait1 + Trait2 + Trait3] : Trait1[T] + Trait2[T] + Trait3[T] {
+	function new() => unsigned32 {}
+}
+
+trait WithGenericWithGenericTraitWithMultiSuperTraitWithGenerics[T : Trait[T]] : Trait1[T] + Trait2[T] + Trait3[T] {
+	function new() => unsigned32 {}
+}
+
+trait WithGenericWithMultipleGenericTraitWithMultiSuperTraitWithGenerics[T : Trait1[T] + Trait2[T] + Trait3[T]] : Trait1[T] + Trait2[T] + Trait3[T] {
+	function new() => unsigned32 {}
+}
+
+trait WithMultipleGenericWithMultipleGenericTraitWithMultiSuperTraitWithGenerics[T : Trait1[T] + Trait2[T] + Trait3[T] , U : Trait1[U] + Trait2[U] + Trait3[U]] : Trait1[T] + Trait2[T] + Trait3[T] {
+	function new() => unsigned32 {}
+}
+
