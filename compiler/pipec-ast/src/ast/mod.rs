@@ -92,7 +92,52 @@ impl<'this> ASTGenerator<'this> {
 
     #[inline]
     pub(crate) fn consume_implement_keyword(&mut self) -> ASTNode {
-        todo!();
+        self.advance_stream();
+        let generics = self.consume_generics();
+        self.consume_whitespace();
+        let first = self.consume_a_path();
+        let second = {
+            self.consume_whitespace();
+            match self.peek_stream() {
+                Some(Token::ForKeyword) => {
+                    self.advance_stream();
+                    self.consume_whitespace();
+                    Some(self.consume_a_path())
+                }
+                Some(Token::LeftCurly) => None,
+                v => todo!("unexpected {v:#?}"),
+            }
+        };
+        self.consume_whitespace();
+        let block = {
+            self.must(Token::LeftCurly);
+            let mut nodes = Vec::new();
+            loop {
+                self.consume_whitespace();
+                if self.peek_stream() == &Some(Token::RightCurly) {
+                    self.advance_stream();
+                    break;
+                }
+                nodes.push(self.parse_value());
+            }
+            ASTTree::new(nodes, self.src)
+        };
+
+        if let Some(implementor) = second {
+            ASTNode::ImplementBlock {
+                generics,
+                traitpath: Some(first),
+                implementor,
+                block,
+            }
+        } else {
+            ASTNode::ImplementBlock {
+                generics,
+                traitpath: second,
+                implementor: first,
+                block,
+            }
+        }
     }
 
     #[inline]
@@ -1285,7 +1330,9 @@ pub enum ASTNode {
         tree: ASTTree,
     },
     ImplementBlock {
-        implementing: Option<Path>,
+        generics: Generics,
+        traitpath: Option<Path>,
+        implementor: Path,
         block: ASTTree,
     },
     Public(Box<Self>),

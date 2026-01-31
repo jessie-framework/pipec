@@ -445,6 +445,7 @@ impl<'chars> Tokenizer<'chars> {
             "type" => TypeKeyword,
             "trait" => TraitKeyword,
             "implement" => ImplementKeyword,
+            "for" => ForKeyword,
             _ => Token::Ident(input),
         }
     }
@@ -578,6 +579,8 @@ pub enum Token {
     TraitKeyword,
     /// implement
     ImplementKeyword,
+    /// for
+    ForKeyword,
     /// 21213
     Digit { val: Span, digittype: DigitType },
     /// things_like_this or this_2
