@@ -79,6 +79,7 @@ impl<'this> ASTGenerator<'this> {
                 Token::PublicKeyword => self.consume_public_keyword(),
                 Token::TypeKeyword => self.consume_type_keyword(),
                 Token::TraitKeyword => self.consume_trait_keyword(),
+                Token::ImplementKeyword => self.consume_implement_keyword(),
                 Token::AtSign => self.consume_attributes(),
                 _v => {
                     println!("{_v:#?}");
@@ -87,6 +88,11 @@ impl<'this> ASTGenerator<'this> {
             },
             None => ASTNode::EOF,
         }
+    }
+
+    #[inline]
+    pub(crate) fn consume_implement_keyword(&mut self) -> ASTNode {
+        todo!();
     }
 
     #[inline]
@@ -132,6 +138,7 @@ impl<'this> ASTGenerator<'this> {
                     .parse_arena(self.loader.load(self.src), self.arena);
                 match name {
                     "language" => attributes.push(self.consume_language_attribute()),
+                    "inline" => attributes.push(self.consume_inline_attribute()),
                     _ => todo!(),
                 }
             } else {
@@ -139,6 +146,11 @@ impl<'this> ASTGenerator<'this> {
             }
         }
         ASTNode::Attributed(attributes, Box::new(self.parse_value()))
+    }
+
+    #[inline]
+    pub(crate) fn consume_inline_attribute(&mut self) -> Attribute {
+        Attribute::Inline
     }
 
     #[inline]
@@ -366,13 +378,13 @@ impl<'this> ASTGenerator<'this> {
             self.consume_whitespace();
             match self.peek_stream() {
                 Some(Token::Ident(_)) => {
-                    let name = self.must_ident();
-                    let generics = self.consume_generics();
-                    out.push(Trait { name, generics });
+                    out.push(self.consume_a_path());
                     self.consume_whitespace();
                     if self.next_is(Token::Plus) {
                         self.advance_stream();
                         continue;
+                    } else {
+                        break;
                     }
                 }
                 Some(Token::Comma) | Some(Token::RightSquare) | Some(Token::LeftCurly) => {
@@ -1173,33 +1185,31 @@ impl<'this> ASTGenerator<'this> {
                 Some(Token::Ident(v)) => {
                     let name = *v;
                     self.advance_stream();
-                    let param = self.consume_path_param();
-                    out.push(PathNode::Named { name, param });
-                    continue;
-                }
-                Some(Token::Slash) => {
-                    self.advance_stream();
-                    continue;
+                    let generics = self.consume_generics();
+                    out.push(PathNode::Singly { name, generics });
+                    if self.next_is(Token::Backslash) {
+                        self.advance_stream();
+                        continue;
+                    } else {
+                        break;
+                    }
                 }
                 Some(Token::LeftParenthesis) => {
                     self.advance_stream();
                     let mut vals = Vec::new();
                     loop {
                         self.consume_whitespace();
-                        match self.advance_stream() {
-                            Some(Token::Ident(v)) => {
-                                vals.push(v);
-                                continue;
-                            }
-                            Some(Token::RightParenthesis) => {
-                                break;
-                            }
-                            Some(Token::Comma) => {
-                                continue;
-                            }
-                            _v => {}
+                        vals.push(self.consume_a_path());
+                        self.consume_whitespace();
+                        if self.next_is(Token::Comma) {
+                            self.advance_stream();
+                            continue;
+                        } else {
+                            break;
                         }
                     }
+                    out.push(PathNode::Multi(vals));
+                    self.must(Token::RightParenthesis);
                 }
                 _ => {
                     break;
@@ -1210,60 +1220,10 @@ impl<'this> ASTGenerator<'this> {
     }
 
     #[inline]
-    pub(crate) fn consume_path_param(&mut self) -> Option<FunctionNodeParams> {
-        match self.peek_stream() {
-            Some(Token::LeftParenthesis) => {
-                if let Expression::TupleExpression { values } = self.consume_tuple_expression() {
-                    return Some(FunctionNodeParams::Tuple(values));
-                }
-                // TODO : compiler error
-                unreachable!();
-            }
-            Some(Token::LeftAngle) => Some(FunctionNodeParams::Angles(self.consume_angle_params())),
-            _v => None,
-        }
-    }
-    #[inline]
     pub(crate) fn consume_whitespace(&mut self) {
         while self.tokens.peek() == &Some(Token::Whitespace) {
             self.tokens.next_token();
         }
-    }
-
-    #[inline]
-    pub(crate) fn consume_angle_params(&mut self) -> Vec<Path> {
-        self.must(Token::LeftAngle);
-        let mut out = Vec::new();
-        loop {
-            self.consume_whitespace();
-            match self.peek_stream() {
-                Some(Token::Ident(_)) => {
-                    out.push(self.consume_a_path());
-                    self.consume_whitespace();
-                    match self.peek_stream() {
-                        Some(Token::Comma) => {
-                            self.advance_stream();
-                            continue;
-                        }
-                        Some(Token::Ident(_)) => {
-                            continue;
-                        }
-                        Some(Token::RightAngle) => {
-                            break;
-                        }
-                        _ => {
-                            //TODO : compiler error
-                            unreachable!()
-                        }
-                    }
-                }
-                _ => {
-                    //TODO : compiler error
-                    unreachable!()
-                }
-            }
-        }
-        out
     }
 }
 
@@ -1273,11 +1233,8 @@ pub struct Path(pub Vec<PathNode>);
 
 #[derive(Debug, Clone, Hash)]
 pub enum PathNode {
-    Named {
-        name: Span,
-        param: Option<FunctionNodeParams>,
-    },
-    Tuple(Vec<Span>),
+    Singly { name: Span, generics: Generics },
+    Multi(Vec<Path>),
 }
 
 #[derive(Debug, Clone, Hash)]
@@ -1327,6 +1284,10 @@ pub enum ASTNode {
         supertraits: Traits,
         tree: ASTTree,
     },
+    ImplementBlock {
+        implementing: Option<Path>,
+        block: ASTTree,
+    },
     Public(Box<Self>),
     Attributed(Vec<Attribute>, Box<Self>),
     EOF,
@@ -1335,6 +1296,7 @@ pub enum ASTNode {
 #[derive(Debug, Clone)]
 pub enum Attribute {
     LanguageAttribute(Span),
+    Inline,
 }
 
 #[derive(Debug, Clone)]
@@ -1501,10 +1463,10 @@ pub struct FunctionDeclarationParameter {
     pub arg_type: Path,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash)]
 pub struct Generics(pub Vec<Generic>);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash)]
 #[allow(unused)]
 pub struct Generic {
     name: Span,
@@ -1512,18 +1474,11 @@ pub struct Generic {
     traits: Traits,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Hash, Default)]
 #[allow(unused)]
-pub struct Traits(Vec<Trait>);
+pub struct Traits(Vec<Path>);
 
-#[derive(Debug, Clone)]
-#[allow(unused)]
-pub struct Trait {
-    name: Span,
-    generics: Generics,
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash)]
 pub enum GenericType {
     Lifetime,
     Generic,
