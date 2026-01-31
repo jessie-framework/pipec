@@ -132,7 +132,7 @@ impl<'this> GlobalSymbolTree<'this> {
             let first = vec.first();
             match first {
                 None => {}
-                Some(PathNode::Named { name, param: _ }) => {
+                Some(PathNode::Singly { name, generics: _ }) => {
                     let name = name.parse_arena(self.src, self.arena);
                     match name {
                         "integer8" => return Integer8,
@@ -167,7 +167,7 @@ impl<'this> GlobalSymbolTree<'this> {
             if next.is_none() {
                 break;
             }
-            if let Some(PathNode::Named { name, param: _ }) = next {
+            if let Some(PathNode::Singly { name, generics: _ }) = next {
                 let parsed = name.parse_arena(self.src, self.arena).to_string();
                 out.path.push(parsed);
             }
