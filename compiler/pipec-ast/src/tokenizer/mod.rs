@@ -81,10 +81,12 @@ impl<'chars> Tokenizer<'chars> {
                 '=' => self.consume_equal_sign(),
                 '"' => self.consume_string(),
                 '#' => self.consume_hash(),
+                '\\' => self.consume_backslash(),
                 v if v.is_ascii_whitespace() => self.consume_whitespace(),
                 v if v.is_ascii_alphabetic() => self.consume_ident_token(),
                 v if v.is_ascii_digit() => self.consume_digit_token(),
                 _v => {
+                    println!("unexpected token {_v}");
                     //TODO : compiler error
                     unreachable!()
                 }
@@ -104,6 +106,12 @@ impl<'chars> Tokenizer<'chars> {
             }
             _ => {}
         }
+    }
+
+    #[inline]
+    pub(crate) fn consume_backslash(&mut self) -> Token {
+        self.advance_stream();
+        Token::Backslash
     }
 
     #[inline]
@@ -436,6 +444,7 @@ impl<'chars> Tokenizer<'chars> {
             "switch" => SwitchKeyword,
             "type" => TypeKeyword,
             "trait" => TraitKeyword,
+            "implement" => ImplementKeyword,
             _ => Token::Ident(input),
         }
     }
@@ -529,6 +538,8 @@ pub enum Token {
     RightAngle,
     /// #
     Hash,
+    /// \
+    Backslash,
     /// (whitespace)
     Whitespace,
     /// using
@@ -565,6 +576,8 @@ pub enum Token {
     TypeKeyword,
     /// trait
     TraitKeyword,
+    /// implement
+    ImplementKeyword,
     /// 21213
     Digit { val: Span, digittype: DigitType },
     /// things_like_this or this_2
