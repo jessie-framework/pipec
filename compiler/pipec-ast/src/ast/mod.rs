@@ -59,7 +59,6 @@ impl<'this> ASTGenerator<'this> {
 
     #[inline]
     pub(crate) fn advance_stream(&mut self) -> Option<Token> {
-        println!("{:#?}", self.peek_stream());
         self.tokens.next_token()
     }
     #[inline]
@@ -82,7 +81,6 @@ impl<'this> ASTGenerator<'this> {
                 Token::ImplementKeyword => self.consume_implement_keyword(),
                 Token::AtSign => self.consume_attributes(),
                 _v => {
-                    println!("{_v:#?}");
                     todo!();
                 }
             },
@@ -450,15 +448,11 @@ impl<'this> ASTGenerator<'this> {
         self.consume_whitespace();
         let params = self.consume_function_parameters();
         self.consume_whitespace();
-        let mut out_type = None;
-        if self.next_is(Token::FatArrow) {
-            self.advance_stream();
-            self.consume_whitespace();
-            out_type = Some(self.consume_a_path());
-        }
+        self.must(Token::FatArrow);
+        self.consume_whitespace();
+        let out_type = self.consume_a_path();
         self.consume_whitespace();
         let block = self.consume_function_block();
-
         ASTNode::FunctionDeclaration {
             name,
             params,
@@ -538,7 +532,6 @@ impl<'this> ASTGenerator<'this> {
 
     #[inline]
     pub(crate) fn must(&mut self, val: Token) {
-        println!("should have {:#?}", self.peek_stream());
         if self.advance_stream() != Some(val) {
             // TODO : compiler error
             unreachable!()
@@ -652,7 +645,6 @@ impl<'this> ASTGenerator<'this> {
             };
         }
 
-        println!("{path1:#?},{path2:#?}");
         unreachable!()
     }
 
@@ -1020,7 +1012,6 @@ impl<'this> ASTGenerator<'this> {
             Some(Token::SwitchKeyword) => self.consume_switch_expression(),
 
             _v => {
-                println!("{_v:#?}");
                 //TODO : compiler error
                 unreachable!();
             }
@@ -1091,7 +1082,6 @@ impl<'this> ASTGenerator<'this> {
     #[inline]
     pub(crate) fn consume_switch_arm(&mut self) -> SwitchArm {
         let expr = self.consume_an_expression();
-        println!("arm lhs = {expr:#?}");
         let lhs = Box::new(expr);
         self.consume_whitespace();
         self.must(Token::ThinArrow);
@@ -1298,7 +1288,7 @@ pub enum ASTNode {
         generics: Generics,
         params: FunctionDeclarationParameters,
         block: Block,
-        out_type: Option<Path>,
+        out_type: Path,
     },
     ViewportDeclaration {
         name: Span,
@@ -1399,7 +1389,7 @@ pub struct FragmentsBlock {
     block: Block,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash)]
 pub enum FunctionBlockStatements {
     MutableVariableDeclaration {
         variablename: Span,
@@ -1425,7 +1415,7 @@ pub enum FunctionBlockStatements {
     },
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Hash)]
 pub enum Exported {
     ColorBuiltin,
     PositionBuiltin,
@@ -1495,7 +1485,7 @@ pub enum VariableType {
     Final,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash)]
 #[allow(unused)]
 pub struct Block(Vec<FunctionBlockStatements>);
 

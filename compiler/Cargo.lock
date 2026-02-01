@@ -230,6 +230,7 @@ dependencies = [
  "pipec-arena",
  "pipec-ast",
  "pipec-file-loader",
+ "pipec-gst",
 ]
 
 [[package]]
