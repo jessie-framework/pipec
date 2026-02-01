@@ -1,15 +1,15 @@
-function basic[T](input : T) {}
+function basic[T](input : T) => nothing {}
 
-function multiple[T,U](input1 : T , input2 : U) {}
+function multiple[T,U](input1 : T , input2 : U) => nothing {}
 
-function with_traits[T : Trait](input : T) {}
+function with_traits[T : Trait](input : T) => nothing {}
 
-function multiple_traits[T : Trait1 + Trait2 + Trait3](input : T) => T {}
+function multiple_traits[T : Trait1 + Trait2 + Trait3](input : T) => nothing {}
 
-function multiple_with_multiple_traits[T : Trait1 + Trait2 + Trait3 , U : Trait1 + Trait2 + Trait3](input1 : T , input2 : U) {}
+function multiple_with_multiple_traits[T : Trait1 + Trait2 + Trait3 , U : Trait1 + Trait2 + Trait3](input1 : T , input2 : U) => nothing {}
 
-function generic_trait[T: Trait1[T]](input : T) {}
+function generic_trait[T: Trait1[T]](input : T) => nothing {}
 
-function multiple_generic_trait[T : Trait1[T] + Trait2[T] + Trait3[T]](input : T) => T {}
+function multiple_generic_trait[T : Trait1[T] + Trait2[T] + Trait3[T]](input : T) => nothing {}
 
-function multiple_generic_with_generic_trait[T : Trait1[T] + Trait2[T] + Trait3[T] , U : Trait1[T] + Trait2[T] + Trait3[T]](input1 : T, input3 : T) => T {}
+function multiple_generic_with_generic_trait[T : Trait1[T] + Trait2[T] + Trait3[T] , U : Trait1[T] + Trait2[T] + Trait3[T]](input1 : T, input3 : T) => nothing {}
