@@ -14,6 +14,7 @@ pub struct GlobalSymbolTree<'this> {
     loader: &'this mut FileLoader,
     arena: &'this mut Arena,
     src: ASlice<AStr>,
+    #[allow(unused)]
     attribute_cache: HashSet<LanguageAttribute>,
 }
 
