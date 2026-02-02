@@ -82,7 +82,10 @@ impl<'chars> Tokenizer<'chars> {
                 '"' => self.consume_string(),
                 '#' => self.consume_hash(),
                 '\\' => self.consume_backslash(),
-                v if v.is_ascii_whitespace() => self.consume_whitespace(),
+                v if v.is_ascii_whitespace() => {
+                    self.consume_whitespace();
+                    self.consume_next_token()
+                }
                 v if v.is_ascii_alphabetic() => self.consume_ident_token(),
                 v if v.is_ascii_digit() => self.consume_digit_token(),
                 _v => {
@@ -310,14 +313,12 @@ impl<'chars> Tokenizer<'chars> {
     }
 
     #[inline]
-    pub(crate) fn consume_whitespace(&mut self) -> Token {
+    pub(crate) fn consume_whitespace(&mut self) {
         while let Some(v) = self.peek_stream()
             && v.is_ascii_whitespace()
         {
             self.advance_stream();
         }
-
-        Token::Whitespace
     }
 
     #[inline]
@@ -541,8 +542,6 @@ pub enum Token {
     Hash,
     /// \
     Backslash,
-    /// (whitespace)
-    Whitespace,
     /// using
     UsingKeyword,
     /// viewport
