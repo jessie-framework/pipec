@@ -67,7 +67,6 @@ impl<'this> ASTGenerator<'this> {
     }
 
     pub fn parse_value(&mut self) -> ASTNode {
-        self.consume_whitespace();
         match self.peek_stream() {
             Some(v) => match v {
                 Token::UsingKeyword => self.consume_using_keyword(),
@@ -92,26 +91,21 @@ impl<'this> ASTGenerator<'this> {
     pub(crate) fn consume_implement_keyword(&mut self) -> ASTNode {
         self.advance_stream();
         let generics = self.consume_generics();
-        self.consume_whitespace();
         let first = self.consume_a_path();
         let second = {
-            self.consume_whitespace();
             match self.peek_stream() {
                 Some(Token::ForKeyword) => {
                     self.advance_stream();
-                    self.consume_whitespace();
                     Some(self.consume_a_path())
                 }
                 Some(Token::LeftCurly) => None,
                 v => todo!("unexpected {v:#?}"),
             }
         };
-        self.consume_whitespace();
         let block = {
             self.must(Token::LeftCurly);
             let mut nodes = Vec::new();
             loop {
-                self.consume_whitespace();
                 if self.peek_stream() == &Some(Token::RightCurly) {
                     self.advance_stream();
                     break;
@@ -141,20 +135,16 @@ impl<'this> ASTGenerator<'this> {
     #[inline]
     pub(crate) fn consume_trait_keyword(&mut self) -> ASTNode {
         self.advance_stream();
-        self.consume_whitespace();
         let name = self.must_ident();
         let generics = self.consume_generics();
-        self.consume_whitespace();
         let mut supertraits = Traits::default();
         if self.next_is(Token::Colon) {
             self.advance_stream();
             supertraits = self.consume_traits();
         }
-        self.consume_whitespace();
         self.must(Token::LeftCurly);
         let mut nodes = Vec::new();
         loop {
-            self.consume_whitespace();
             if self.peek_stream() == &Some(Token::RightCurly) {
                 self.advance_stream();
                 break;
@@ -207,10 +197,8 @@ impl<'this> ASTGenerator<'this> {
     #[inline]
     pub(crate) fn consume_type_keyword(&mut self) -> ASTNode {
         self.advance_stream();
-        self.consume_whitespace();
         let name = self.must_ident();
         let generics = self.consume_generics();
-        self.consume_whitespace();
         match self.peek_stream() {
             Some(Token::EqualSign) => {
                 self.advance_stream();
@@ -237,7 +225,6 @@ impl<'this> ASTGenerator<'this> {
 
     #[inline]
     pub(crate) fn consume_subtype(&mut self) -> SubType {
-        self.consume_whitespace();
         match self.peek_stream() {
             Some(Token::Ident(_)) => self.consume_named_subtype(),
             Some(Token::LeftParenthesis) => self.consume_union_subtype(),
@@ -251,7 +238,6 @@ impl<'this> ASTGenerator<'this> {
         self.advance_stream();
         let mut out = Vec::new();
         loop {
-            self.consume_whitespace();
             match self.peek_stream() {
                 Some(Token::RightParenthesis) => {
                     self.advance_stream();
@@ -259,7 +245,6 @@ impl<'this> ASTGenerator<'this> {
                 }
                 Some(Token::Ident(_)) | Some(Token::LeftParenthesis) | Some(Token::LeftCurly) => {
                     out.push(self.consume_subtype());
-                    self.consume_whitespace();
                     if self.next_is(Token::Pipe) {
                         self.advance_stream();
                         continue;
@@ -274,7 +259,6 @@ impl<'this> ASTGenerator<'this> {
     #[inline]
     pub(crate) fn consume_named_subtype(&mut self) -> SubType {
         let name = self.must_ident();
-        self.consume_whitespace();
         match self.peek_stream() {
             Some(Token::Semicolon)
             | Some(Token::Pipe)
@@ -284,7 +268,6 @@ impl<'this> ASTGenerator<'this> {
 
             Some(Token::Colon) => {
                 self.advance_stream();
-                self.consume_whitespace();
                 SubType::Named(name, Box::new(self.consume_subtype()))
             }
             v => unreachable!("{v:#?} btw aa"),
@@ -296,15 +279,12 @@ impl<'this> ASTGenerator<'this> {
         self.advance_stream();
         let mut map = HashMap::new();
         loop {
-            self.consume_whitespace();
             match self.advance_stream() {
                 Some(Token::Ident(name)) => {
                     let string = name
                         .parse_arena(self.loader.load(self.src), self.arena)
                         .to_owned();
-                    self.consume_whitespace();
                     self.must(Token::Colon);
-                    self.consume_whitespace();
                     map.insert(string, self.consume_subtype());
                     if self.next_is(Token::Comma) {
                         self.advance_stream();
@@ -329,18 +309,15 @@ impl<'this> ASTGenerator<'this> {
 
     #[inline]
     pub(crate) fn consume_generics(&mut self) -> Generics {
-        self.consume_whitespace();
         if !self.next_is(Token::LeftSquare) {
             return Generics(vec![]);
         }
         self.must(Token::LeftSquare);
         let mut out = Vec::new();
         loop {
-            self.consume_whitespace();
             match self.advance_stream() {
                 Some(Token::Hash) => {
                     let name = self.must_ident();
-                    self.consume_whitespace();
                     match self.peek_stream() {
                         Some(Token::Colon) => {
                             self.advance_stream();
@@ -350,7 +327,6 @@ impl<'this> ASTGenerator<'this> {
                                 generictype: GenericType::Lifetime,
                                 traits,
                             });
-                            self.consume_whitespace();
                             if self.next_is(Token::Comma) {
                                 self.advance_stream();
                                 continue;
@@ -372,39 +348,35 @@ impl<'this> ASTGenerator<'this> {
                         _ => todo!(),
                     }
                 }
-                Some(Token::Ident(name)) => {
-                    self.consume_whitespace();
-                    match self.peek_stream() {
-                        Some(Token::Colon) => {
+                Some(Token::Ident(name)) => match self.peek_stream() {
+                    Some(Token::Colon) => {
+                        self.advance_stream();
+                        let traits = self.consume_traits();
+                        out.push(Generic {
+                            name,
+                            generictype: GenericType::Generic,
+                            traits,
+                        });
+                        if self.next_is(Token::Comma) {
                             self.advance_stream();
-                            let traits = self.consume_traits();
-                            out.push(Generic {
-                                name,
-                                generictype: GenericType::Generic,
-                                traits,
-                            });
-                            self.consume_whitespace();
-                            if self.next_is(Token::Comma) {
-                                self.advance_stream();
-                                continue;
-                            }
-                        }
-                        Some(Token::Comma) => {
-                            self.advance_stream();
-                            out.push(Generic {
-                                name,
-                                generictype: GenericType::Generic,
-                                traits: Traits::default(),
-                            });
                             continue;
                         }
-                        Some(Token::RightSquare) => {
-                            self.advance_stream();
-                            break;
-                        }
-                        v => todo!("{v:#?}"),
                     }
-                }
+                    Some(Token::Comma) => {
+                        self.advance_stream();
+                        out.push(Generic {
+                            name,
+                            generictype: GenericType::Generic,
+                            traits: Traits::default(),
+                        });
+                        continue;
+                    }
+                    Some(Token::RightSquare) => {
+                        self.advance_stream();
+                        break;
+                    }
+                    v => todo!("{v:#?}"),
+                },
                 Some(Token::RightSquare) | Some(Token::RightCurly) => {
                     break;
                 }
@@ -418,11 +390,9 @@ impl<'this> ASTGenerator<'this> {
     pub(crate) fn consume_traits(&mut self) -> Traits {
         let mut out = Vec::new();
         loop {
-            self.consume_whitespace();
             match self.peek_stream() {
                 Some(Token::Ident(_)) => {
                     out.push(self.consume_a_path());
-                    self.consume_whitespace();
                     if self.next_is(Token::Plus) {
                         self.advance_stream();
                         continue;
@@ -442,16 +412,11 @@ impl<'this> ASTGenerator<'this> {
     #[inline]
     pub(crate) fn consume_function_keyword(&mut self) -> ASTNode {
         self.advance_stream();
-        self.consume_whitespace();
         let name = self.must_ident();
         let generics = self.consume_generics();
-        self.consume_whitespace();
         let params = self.consume_function_parameters();
-        self.consume_whitespace();
         self.must(Token::FatArrow);
-        self.consume_whitespace();
         let out_type = self.consume_a_path();
-        self.consume_whitespace();
         let block = self.consume_function_block();
         ASTNode::FunctionDeclaration {
             name,
@@ -465,11 +430,8 @@ impl<'this> ASTGenerator<'this> {
     #[inline]
     pub(crate) fn consume_viewport_keyword(&mut self) -> ASTNode {
         self.advance_stream();
-        self.consume_whitespace();
         let name = self.must_ident();
-        self.consume_whitespace();
         let params = self.consume_function_parameters();
-        self.consume_whitespace();
         let block = self.consume_function_block();
         ASTNode::ViewportDeclaration {
             name,
@@ -488,13 +450,11 @@ impl<'this> ASTGenerator<'this> {
         let mut vec = Vec::new();
         self.must(Token::LeftParenthesis);
         loop {
-            self.consume_whitespace();
             if self.next_is(Token::RightParenthesis) {
                 self.advance_stream();
                 break;
             }
             vec.push(self.consume_function_parameter());
-            self.consume_whitespace();
             if self.next_is(Token::Comma) {
                 self.advance_stream();
                 continue;
@@ -522,9 +482,7 @@ impl<'this> ASTGenerator<'this> {
     #[inline]
     pub(crate) fn consume_function_parameter(&mut self) -> FunctionDeclarationParameter {
         let name = self.must_ident();
-        self.consume_whitespace();
         self.must(Token::Colon);
-        self.consume_whitespace();
         let arg_type = self.consume_a_path();
 
         FunctionDeclarationParameter { name, arg_type }
@@ -541,9 +499,7 @@ impl<'this> ASTGenerator<'this> {
     #[inline]
     pub(crate) fn consume_module_keyword(&mut self) -> ASTNode {
         self.advance_stream();
-        self.consume_whitespace();
         let mod_path = self.must_ident();
-        self.consume_whitespace();
         match self.peek_stream() {
             Some(Token::Semicolon) => self.consume_node_from_fs(mod_path),
             Some(Token::LeftCurly) => self.consume_mod_block(mod_path),
@@ -559,7 +515,6 @@ impl<'this> ASTGenerator<'this> {
         self.advance_stream();
         let mut nodes = Vec::new();
         loop {
-            self.consume_whitespace();
             if self.peek_stream() == &Some(Token::RightCurly) {
                 self.advance_stream();
                 break;
@@ -651,7 +606,6 @@ impl<'this> ASTGenerator<'this> {
     #[inline]
     pub(crate) fn consume_component_keyword(&mut self) -> ASTNode {
         self.advance_stream();
-        self.consume_whitespace();
         if let Some(Token::Ident(v)) = self.advance_stream() {
             return ASTNode::ComponentDeclaration {
                 name: v,
@@ -664,11 +618,9 @@ impl<'this> ASTGenerator<'this> {
 
     #[inline]
     pub(crate) fn consume_component_declaration_block(&mut self) -> ComponentDeclarationBlock {
-        self.consume_whitespace();
         self.must(Token::LeftCurly);
         let mut contents = Vec::new();
         loop {
-            self.consume_whitespace();
             let next = self.peek_stream();
             if next == &Some(Token::RightCurly) {
                 self.advance_stream();
@@ -696,7 +648,6 @@ impl<'this> ASTGenerator<'this> {
 
     #[inline]
     pub(crate) fn consume_component_render_block(&mut self) -> ComponentDeclarationBlockStatements {
-        self.consume_whitespace();
         let block = self.consume_component_render_block_inner();
         ComponentDeclarationBlockStatements::RenderBlockDeclaration { block }
     }
@@ -704,11 +655,8 @@ impl<'this> ASTGenerator<'this> {
     #[inline]
     pub(crate) fn consume_component_render_block_inner(&mut self) -> RenderBlock {
         self.must(Token::LeftCurly);
-        self.consume_whitespace();
         let vertices_block = self.consume_vertices_block();
-        self.consume_whitespace();
         let fragments_block = self.consume_fragments_block();
-        self.consume_whitespace();
         self.must(Token::RightCurly);
         RenderBlock {
             vertices_block,
@@ -719,7 +667,6 @@ impl<'this> ASTGenerator<'this> {
     #[inline]
     pub(crate) fn consume_vertices_block(&mut self) -> VerticesBlock {
         self.must(Token::VerticesKeyword);
-        self.consume_whitespace();
         VerticesBlock {
             block: self.consume_function_block(),
         }
@@ -728,7 +675,6 @@ impl<'this> ASTGenerator<'this> {
     #[inline]
     pub(crate) fn consume_fragments_block(&mut self) -> FragmentsBlock {
         self.must(Token::FragmentsKeyword);
-        self.consume_whitespace();
         FragmentsBlock {
             block: self.consume_function_block(),
         }
@@ -738,16 +684,12 @@ impl<'this> ASTGenerator<'this> {
     pub(crate) fn consume_final_variable_declaration(
         &mut self,
     ) -> ComponentDeclarationBlockStatements {
-        self.consume_whitespace();
         let variablename = self.must_ident();
-        self.consume_whitespace();
         let variabletype: Option<Path>;
         let declarationexpression: Option<Expression>;
         match self.advance_stream() {
             Some(Token::Colon) => {
-                self.consume_whitespace();
                 variabletype = Some(self.consume_a_path());
-                self.consume_whitespace();
                 if let Some(Token::EqualSign) = self.peek_stream() {
                     declarationexpression = Some(self.consume_an_expression());
                 } else {
@@ -755,7 +697,6 @@ impl<'this> ASTGenerator<'this> {
                 }
             }
             Some(Token::EqualSign) => {
-                self.consume_whitespace();
                 variabletype = None;
                 declarationexpression = Some(self.consume_an_expression());
             }
@@ -764,7 +705,6 @@ impl<'this> ASTGenerator<'this> {
                 unreachable!();
             }
         }
-        self.consume_whitespace();
         self.consume_a_semicolon();
         ComponentDeclarationBlockStatements::FinalVariableDeclaration {
             variablename,
@@ -778,7 +718,6 @@ impl<'this> ASTGenerator<'this> {
         self.must(Token::LeftCurly);
         let mut block = Vec::new();
         loop {
-            self.consume_whitespace();
             let next = self.peek_stream();
             if next == &Some(Token::RightCurly) {
                 self.advance_stream();
@@ -791,7 +730,6 @@ impl<'this> ASTGenerator<'this> {
 
     #[inline]
     pub(crate) fn consume_a_block_statement(&mut self) -> FunctionBlockStatements {
-        self.consume_whitespace();
         match self.peek_stream() {
             Some(v) => match v {
                 Token::MutableKeyword => self.consume_mutable_variable_declaration(),
@@ -809,7 +747,6 @@ impl<'this> ASTGenerator<'this> {
     #[inline]
     pub(crate) fn consume_render_block(&mut self) -> FunctionBlockStatements {
         self.advance_stream();
-        self.consume_whitespace();
         FunctionBlockStatements::RenderBlock {
             block: self.consume_function_block(),
         }
@@ -818,7 +755,6 @@ impl<'this> ASTGenerator<'this> {
     #[inline]
     pub(crate) fn consume_expression_statement(&mut self) -> FunctionBlockStatements {
         let expression = self.consume_an_expression();
-        self.consume_whitespace();
         let mut hidden = false;
         if self.next_is(Token::Semicolon) {
             hidden = true;
@@ -831,7 +767,6 @@ impl<'this> ASTGenerator<'this> {
     pub(crate) fn consume_export_declaration(&mut self) -> FunctionBlockStatements {
         let src = self.loader.load(self.src);
         self.advance_stream();
-        self.consume_whitespace();
         let exporting: Exported = match self.advance_stream() {
             Some(Token::Hash) => match self.advance_stream() {
                 Some(Token::Ident(name)) => match name.parse_arena(src, self.arena) {
@@ -855,13 +790,10 @@ impl<'this> ASTGenerator<'this> {
         };
         let decl_type: Option<Path>;
         let decl_expr: Expression;
-        self.consume_whitespace();
         match self.advance_stream() {
             Some(Token::EqualSign) => {
-                self.consume_whitespace();
                 decl_type = None;
                 decl_expr = self.consume_an_expression();
-                self.consume_whitespace();
                 self.consume_a_semicolon();
                 FunctionBlockStatements::ExportDeclaration {
                     exporting,
@@ -870,13 +802,9 @@ impl<'this> ASTGenerator<'this> {
                 }
             }
             Some(Token::Colon) => {
-                self.consume_whitespace();
                 decl_type = Some(self.consume_a_path());
-                self.consume_whitespace();
                 if self.advance_stream() == Some(Token::EqualSign) {
-                    self.consume_whitespace();
                     decl_expr = self.consume_an_expression();
-                    self.consume_whitespace();
                     self.consume_a_semicolon();
                     return FunctionBlockStatements::ExportDeclaration {
                         exporting,
@@ -898,16 +826,12 @@ impl<'this> ASTGenerator<'this> {
     pub(crate) fn consume_mutable_variable_declaration(&mut self) -> FunctionBlockStatements {
         self.advance_stream();
         // mutable x : u32 = 0;
-        self.consume_whitespace();
         let varname = self.must_ident();
         let vartype: Option<Path>;
         let declexpr: Option<Expression>;
-        self.consume_whitespace();
         match self.advance_stream() {
             Some(Token::Colon) => {
-                self.consume_whitespace();
                 vartype = Some(self.consume_a_path());
-                self.consume_whitespace();
                 match self.advance_stream() {
                     Some(Token::EqualSign) => {
                         declexpr = Some(self.consume_an_expression());
@@ -920,7 +844,6 @@ impl<'this> ASTGenerator<'this> {
             }
 
             Some(Token::EqualSign) => {
-                self.consume_whitespace();
                 declexpr = Some(self.consume_an_expression());
                 vartype = None;
             }
@@ -930,7 +853,6 @@ impl<'this> ASTGenerator<'this> {
                 unreachable!()
             }
         }
-        self.consume_whitespace();
         self.consume_a_semicolon();
 
         FunctionBlockStatements::MutableVariableDeclaration {
@@ -944,16 +866,12 @@ impl<'this> ASTGenerator<'this> {
     pub(crate) fn consume_immutable_variable_declaration(&mut self) -> FunctionBlockStatements {
         self.advance_stream();
         // mutable x : u32 = 0;
-        self.consume_whitespace();
         let varname = self.must_ident();
         let vartype: Option<Path>;
         let declexpr: Option<Expression>;
-        self.consume_whitespace();
         match self.advance_stream() {
             Some(Token::Colon) => {
-                self.consume_whitespace();
                 vartype = Some(self.consume_a_path());
-                self.consume_whitespace();
                 match self.advance_stream() {
                     Some(Token::EqualSign) => {
                         declexpr = Some(self.consume_an_expression());
@@ -966,7 +884,6 @@ impl<'this> ASTGenerator<'this> {
             }
 
             Some(Token::EqualSign) => {
-                self.consume_whitespace();
                 declexpr = Some(self.consume_an_expression());
                 vartype = None;
             }
@@ -976,7 +893,6 @@ impl<'this> ASTGenerator<'this> {
                 unreachable!()
             }
         }
-        self.consume_whitespace();
         self.consume_a_semicolon();
 
         FunctionBlockStatements::ImmutableVariableDeclaration {
@@ -1000,7 +916,6 @@ impl<'this> ASTGenerator<'this> {
 
     #[inline]
     pub(crate) fn consume_an_expression(&mut self) -> Expression {
-        self.consume_whitespace();
         let out = match self.peek_stream() {
             Some(Token::Digit { .. }) => self.consume_number_expression(),
             Some(Token::String(_)) => self.consume_string_expression(),
@@ -1021,7 +936,6 @@ impl<'this> ASTGenerator<'this> {
 
     #[inline]
     pub(crate) fn check_expression_rhs(&mut self, input: Expression) -> Expression {
-        self.consume_whitespace();
         let exprtype = match self.peek_stream() {
             Some(Token::Plus) => Some(BinaryOpType::Add),
             Some(Token::Minus) => Some(BinaryOpType::Subtract),
@@ -1050,7 +964,6 @@ impl<'this> ASTGenerator<'this> {
     #[inline]
     pub(crate) fn consume_switch_expression(&mut self) -> Expression {
         self.advance_stream();
-        self.consume_whitespace();
         let expression = self.consume_an_expression();
         let predicate = Box::new(expression);
         Expression::SwitchExpression {
@@ -1061,11 +974,9 @@ impl<'this> ASTGenerator<'this> {
 
     #[inline]
     pub(crate) fn consume_switch_block(&mut self) -> SwitchExpressionBlock {
-        self.consume_whitespace();
         self.must(Token::LeftCurly);
         let mut out = Vec::new();
         loop {
-            self.consume_whitespace();
             if self.next_is(Token::RightCurly) {
                 self.advance_stream();
                 break;
@@ -1083,9 +994,7 @@ impl<'this> ASTGenerator<'this> {
     pub(crate) fn consume_switch_arm(&mut self) -> SwitchArm {
         let expr = self.consume_an_expression();
         let lhs = Box::new(expr);
-        self.consume_whitespace();
         self.must(Token::ThinArrow);
-        self.consume_whitespace();
         let expr = self.consume_an_expression();
         let rhs = Box::new(expr);
         SwitchArm { lhs, rhs }
@@ -1094,7 +1003,6 @@ impl<'this> ASTGenerator<'this> {
     #[inline]
     pub(crate) fn consume_required_expression(&mut self) -> Expression {
         self.advance_stream();
-        self.consume_whitespace();
         let expr = self.consume_an_expression();
         let value = Box::new(expr);
         Expression::RequiredExpression { value }
@@ -1102,8 +1010,7 @@ impl<'this> ASTGenerator<'this> {
 
     #[inline]
     pub(crate) fn consume_path_expression(&mut self) -> Expression {
-        self.consume_whitespace();
-        let first = match self.peek_stream() {
+        match self.peek_stream() {
             Some(Token::Ident(_)) => Expression::PathExpression {
                 value: self.consume_a_path(),
             },
@@ -1111,11 +1018,7 @@ impl<'this> ASTGenerator<'this> {
                 //TODO : compile error
                 unreachable!()
             }
-        };
-
-        self.consume_whitespace();
-
-        first
+        }
     }
     #[inline]
     pub(crate) fn consume_list_expression(&mut self) -> Expression {
@@ -1123,8 +1026,6 @@ impl<'this> ASTGenerator<'this> {
         let mut exprs = Vec::new();
         loop {
             exprs.push(self.consume_an_expression());
-
-            self.consume_whitespace();
 
             let next = self.peek_stream();
             match next {
@@ -1146,7 +1047,6 @@ impl<'this> ASTGenerator<'this> {
     #[inline]
     pub(crate) fn consume_tilde_expression(&mut self) -> Expression {
         self.advance_stream();
-        self.consume_whitespace();
         let expr = self.consume_an_expression();
         Expression::TildeExpression {
             value: Box::new(expr),
@@ -1166,7 +1066,6 @@ impl<'this> ASTGenerator<'this> {
         let mut values = Vec::new();
         loop {
             values.push(self.consume_an_expression());
-            self.consume_whitespace();
 
             let next = self.peek_stream();
             match next {
@@ -1188,7 +1087,6 @@ impl<'this> ASTGenerator<'this> {
 
     #[inline]
     pub(crate) fn consume_number_expression(&mut self) -> Expression {
-        self.consume_whitespace();
         match self.advance_stream() {
             Some(Token::Digit {
                 val: value,
@@ -1204,7 +1102,6 @@ impl<'this> ASTGenerator<'this> {
     #[inline]
     pub(crate) fn consume_using_keyword(&mut self) -> ASTNode {
         self.advance_stream();
-        self.consume_whitespace();
 
         let using = self.consume_a_path();
         self.consume_a_semicolon();
@@ -1233,9 +1130,7 @@ impl<'this> ASTGenerator<'this> {
                     self.advance_stream();
                     let mut vals = Vec::new();
                     loop {
-                        self.consume_whitespace();
                         vals.push(self.consume_a_path());
-                        self.consume_whitespace();
                         if self.next_is(Token::Comma) {
                             self.advance_stream();
                             continue;
@@ -1252,13 +1147,6 @@ impl<'this> ASTGenerator<'this> {
             }
         }
         Path(out)
-    }
-
-    #[inline]
-    pub(crate) fn consume_whitespace(&mut self) {
-        while self.tokens.peek() == &Some(Token::Whitespace) {
-            self.tokens.next_token();
-        }
     }
 }
 
