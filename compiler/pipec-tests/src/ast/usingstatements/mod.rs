@@ -1,8 +1,7 @@
 #[test]
 fn test_using_statements() {
     {
-        crate::test_file_generation!("test.pipec",scope scope);
-        println!("{scope:#?}");
+        crate::test_file_generation!("singlefile.pipec",scope scope);
         assert!(scope.symbols.contains_key("func1"));
         assert!(scope.symbols.contains_key("func2"));
         assert!(scope.symbols.contains_key("func3"));
@@ -21,6 +20,31 @@ fn test_using_statements() {
             scope
                 .submodules
                 .get("mod5")
+                .unwrap()
+                .symbols
+                .contains_key("func8")
+        );
+    }
+    {
+        crate::test_file_generation!("multifile.pipec",scope scope);
+        assert!(scope.symbols.contains_key("func1"));
+        assert!(scope.symbols.contains_key("func2"));
+        assert!(scope.symbols.contains_key("func3"));
+        assert!(scope.symbols.contains_key("func4"));
+        assert!(scope.symbols.contains_key("func5"));
+        assert!(scope.symbols.contains_key("func6"));
+        assert!(
+            scope
+                .submodules
+                .get("multifilemod")
+                .unwrap()
+                .symbols
+                .contains_key("func7")
+        );
+        assert!(
+            scope
+                .submodules
+                .get("multifilemod")
                 .unwrap()
                 .symbols
                 .contains_key("func8")

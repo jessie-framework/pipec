@@ -1,0 +1,24 @@
+using mod1\(func1,func2);
+using mod2\(
+mod3\(func3,func4),
+mod4\(func5,func6)
+);
+
+module mod1 {
+	function func1() => nothing {}
+	function func2() => nothing {}
+}
+
+module mod2 {
+	module mod3 {
+		function func3() => nothing {}
+		function func4() => nothing {}
+	}
+
+	module mod4 {
+		function func5() => nothing {}
+		function func6() => nothing {}
+	}
+}
+
+module multifilemod;

@@ -1,0 +1,7 @@
+using mod6\(func7,func8);
+module mod6 {
+	function func7() => nothing {}
+	function func8() => nothing {}
+}
+function func9() => nothing {}
+function func10() => nothing {}
